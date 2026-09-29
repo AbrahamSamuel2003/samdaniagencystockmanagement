@@ -259,6 +259,16 @@ export class StockStore {
   }
 
   /**
+   * Directly applies remote state from peer WebSocket broadcast (sub-50ms)
+   */
+  static applyRemoteState(remoteState: AppState): void {
+    if (!remoteState) return;
+    this.cachedState = remoteState;
+    this.saveLocalState(remoteState);
+    this.notifyListeners();
+  }
+
+  /**
    * Fetches latest live data from Supabase PostgreSQL Database
    */
   static async fetchLiveState(): Promise<AppState> {
@@ -290,10 +300,11 @@ export class StockStore {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
     }
     this.notifyListeners();
+    broadcastStateChange("reset", initial);
     return initial;
   }
 
-  // --- BRAND ACTIONS (Instant 0ms Optimistic + Background Cloud + Realtime Broadcast) ---
+  // --- BRAND ACTIONS ---
   static async addBrand(name: string, code?: string): Promise<Brand> {
     const state = this.getState();
     const tempBrand: Brand = {
@@ -305,13 +316,14 @@ export class StockStore {
       updatedAt: new Date().toISOString(),
     };
 
-    // 1. Instant Optimistic Render
+    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
     state.brands.unshift(tempBrand);
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
+    broadcastStateChange("brand_add", state);
 
-    // 2. Background Cloud Sync + WebSocket Broadcast
+    // 2. Background Cloud Persistence
     try {
       const res = await fetch("/api/brands", {
         method: "POST",
@@ -323,7 +335,6 @@ export class StockStore {
         if (json.data) {
           tempBrand.id = json.data.id;
         }
-        broadcastStateChange("brand_add");
       }
     } catch (e) {
       console.error("DB addBrand error:", e);
@@ -337,7 +348,7 @@ export class StockStore {
     const idx = state.brands.findIndex((b) => b.id === id);
     if (idx === -1) return null;
 
-    // 1. Instant Optimistic Render
+    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
     state.brands[idx] = {
       ...state.brands[idx],
       name: name.trim(),
@@ -348,17 +359,15 @@ export class StockStore {
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
+    broadcastStateChange("brand_update", state);
 
-    // 2. Background Cloud Sync + WebSocket Broadcast
+    // 2. Background Cloud Persistence
     try {
-      const res = await fetch(`/api/brands/${id}`, {
+      await fetch(`/api/brands/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, code, status }),
       });
-      if (res.ok) {
-        broadcastStateChange("brand_update");
-      }
     } catch (e) {
       console.error("DB updateBrand error:", e);
     }
@@ -369,7 +378,7 @@ export class StockStore {
   static async deleteBrand(id: string, cascadeProducts: boolean = true): Promise<boolean> {
     const state = this.getState();
 
-    // 1. Instant Optimistic Render
+    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
     state.brands = state.brands.filter((b) => b.id !== id);
     if (cascadeProducts) {
       state.products = state.products.filter((p) => p.brandId !== id);
@@ -377,13 +386,11 @@ export class StockStore {
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
+    broadcastStateChange("brand_delete", state);
 
-    // 2. Background Cloud Sync + WebSocket Broadcast
+    // 2. Background Cloud Persistence
     try {
-      const res = await fetch(`/api/brands/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        broadcastStateChange("brand_delete");
-      }
+      await fetch(`/api/brands/${id}`, { method: "DELETE" });
     } catch (e) {
       console.error("DB deleteBrand error:", e);
     }
@@ -391,7 +398,7 @@ export class StockStore {
     return true;
   }
 
-  // --- PRODUCT ACTIONS (Instant 0ms Optimistic + Background Cloud + Realtime Broadcast) ---
+  // --- PRODUCT ACTIONS ---
   static async addProduct(data: {
     brandId: string;
     name: string;
@@ -429,13 +436,14 @@ export class StockStore {
       updatedAt: now,
     };
 
-    // 1. Instant Optimistic Render
+    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
     state.products.unshift(tempProduct);
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
+    broadcastStateChange("product_add", state);
 
-    // 2. Background Cloud Sync + WebSocket Broadcast
+    // 2. Background Cloud Persistence
     try {
       const res = await fetch("/api/products", {
         method: "POST",
@@ -447,7 +455,6 @@ export class StockStore {
         if (json.data) {
           tempProduct.id = json.data.id;
         }
-        broadcastStateChange("product_add");
       }
     } catch (e) {
       console.error("DB addProduct error:", e);
@@ -476,7 +483,7 @@ export class StockStore {
     if (idx === -1) return null;
     const brand = state.brands.find((b) => b.id === data.brandId);
 
-    // 1. Instant Optimistic Render
+    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
     state.products[idx] = {
       ...state.products[idx],
       brandId: data.brandId,
@@ -495,17 +502,15 @@ export class StockStore {
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
+    broadcastStateChange("product_update", state);
 
-    // 2. Background Cloud Sync + WebSocket Broadcast
+    // 2. Background Cloud Persistence
     try {
-      const res = await fetch(`/api/products/${id}`, {
+      await fetch(`/api/products/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (res.ok) {
-        broadcastStateChange("product_update");
-      }
     } catch (e) {
       console.error("DB updateProduct error:", e);
     }
@@ -516,18 +521,16 @@ export class StockStore {
   static async deleteProduct(id: string): Promise<boolean> {
     const state = this.getState();
 
-    // 1. Instant Optimistic Render
+    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
     state.products = state.products.filter((p) => p.id !== id);
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
+    broadcastStateChange("product_delete", state);
 
-    // 2. Background Cloud Sync + WebSocket Broadcast
+    // 2. Background Cloud Persistence
     try {
-      const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        broadcastStateChange("product_delete");
-      }
+      await fetch(`/api/products/${id}`, { method: "DELETE" });
     } catch (e) {
       console.error("DB deleteProduct error:", e);
     }
@@ -553,16 +556,14 @@ export class StockStore {
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
+    broadcastStateChange("supplier_add", state);
 
     try {
-      const res = await fetch("/api/masters/suppliers", {
+      await fetch("/api/masters/suppliers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (res.ok) {
-        broadcastStateChange("supplier_add");
-      }
     } catch (e) {
       console.error("DB addSupplier error:", e);
     }
@@ -589,16 +590,14 @@ export class StockStore {
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
+    broadcastStateChange("shop_add", state);
 
     try {
-      const res = await fetch("/api/masters/shops", {
+      await fetch("/api/masters/shops", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (res.ok) {
-        broadcastStateChange("shop_add");
-      }
     } catch (e) {
       console.error("DB addShop error:", e);
     }
@@ -656,22 +655,20 @@ export class StockStore {
       createdAt: now,
     };
 
-    // 1. Instant Optimistic Render
+    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
     state.stockIns.unshift(newStockIn);
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
+    broadcastStateChange("stock_in", state);
 
-    // 2. Background Cloud Sync + WebSocket Broadcast
+    // 2. Background Cloud Persistence
     try {
-      const res = await fetch("/api/stock-in", {
+      await fetch("/api/stock-in", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (res.ok) {
-        broadcastStateChange("stock_in");
-      }
     } catch (e) {
       console.error("DB recordStockIn error:", e);
     }
@@ -729,22 +726,20 @@ export class StockStore {
       createdAt: now,
     };
 
-    // 1. Instant Optimistic Render
+    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
     state.deliveries.unshift(newDelivery);
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
+    broadcastStateChange("delivery", state);
 
-    // 2. Background Cloud Sync + WebSocket Broadcast
+    // 2. Background Cloud Persistence
     try {
-      const res = await fetch("/api/deliveries", {
+      await fetch("/api/deliveries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (res.ok) {
-        broadcastStateChange("delivery");
-      }
     } catch (e) {
       console.error("DB recordDelivery error:", e);
     }
@@ -787,22 +782,20 @@ export class StockStore {
       createdAt: now,
     };
 
-    // 1. Instant Optimistic Render
+    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
     state.adjustments.unshift(newAdj);
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
+    broadcastStateChange("adjustment", state);
 
-    // 2. Background Cloud Sync + WebSocket Broadcast
+    // 2. Background Cloud Persistence
     try {
-      const res = await fetch("/api/adjustments", {
+      await fetch("/api/adjustments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (res.ok) {
-        broadcastStateChange("adjustment");
-      }
     } catch (e) {
       console.error("DB recordAdjustment error:", e);
     }
