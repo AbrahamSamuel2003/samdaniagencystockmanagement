@@ -1,0 +1,225 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum ItemStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum TransactionType {
+  OPENING
+  STOCK_IN
+  DELIVERY
+  ADJUSTMENT
+}
+
+enum AdjustmentReason {
+  DAMAGED
+  EXPIRED
+  MISSING
+  PHYSICAL_COUNT_CORRECTION
+  DATA_ENTRY_MISTAKE
+  RETURNED_STOCK
+  OTHER
+}
+
+model Unit {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  symbol    String   @unique
+  isDecimal Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Brand {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  code      String?    @unique
+  status    ItemStatus @default(ACTIVE)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  products  Product[]
+
+  @@index([status])
+}
+
+model Product {
+  id               String             @id @default(cuid())
+  brandId          String
+  name             String
+  packageSize      Float
+  packageUnit      String
+  stockUnit        String
+  hasBoxConversion Boolean            @default(false)
+  unitsPerBox      Int?
+  subUnitName      String?
+  openingStock     Float              @default(0)
+  currentStock     Float              @default(0)
+  lowStockLimit    Float?
+  status           ItemStatus         @default(ACTIVE)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  brand            Brand              @relation(fields: [brandId], references: [id])
+  transactions     StockTransaction[]
+  deliveryItems    DeliveryItem[]
+  stockInItems     StockInItem[]
+  adjustments      StockAdjustment[]
+
+  @@unique([brandId, name, packageSize, packageUnit])
+  @@index([brandId])
+  @@index([currentStock])
+}
+
+model Supplier {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  phone     String?
+  address   String?
+  notes     String?
+  status    ItemStatus @default(ACTIVE)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  stockIns  StockIn[]
+
+  @@index([name])
+}
+
+model Shop {
+  id            String     @id @default(cuid())
+  name          String     @unique
+  contactPerson String?
+  phone         String?
+  address       String?
+  notes         String?
+  status        ItemStatus @default(ACTIVE)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deliveries    Delivery[]
+
+  @@index([name])
+}
+
+model StockIn {
+  id            String             @id @default(cuid())
+  stockInCode   String             @unique
+  invoiceNo     String?
+  supplierId    String
+  date          DateTime           @default(now())
+  notes         String?
+  totalQuantity Float              @default(0)
+  createdAt     DateTime           @default(now())
+
+  supplier      Supplier           @relation(fields: [supplierId], references: [id])
+  items         StockInItem[]
+  transactions  StockTransaction[]
+
+  @@index([supplierId])
+  @@index([date])
+}
+
+model StockInItem {
+  id             String   @id @default(cuid())
+  stockInId      String
+  productId      String
+  quantity       Float
+  inputBoxes     Int?
+  unit           String
+  packageDisplay String
+
+  stockIn        StockIn  @relation(fields: [stockInId], references: [id], onDelete: Cascade)
+  product        Product  @relation(fields: [productId], references: [id])
+
+  @@index([stockInId])
+  @@index([productId])
+}
+
+model Delivery {
+  id              String             @id @default(cuid())
+  deliveryCode    String             @unique
+  shopId          String
+  deliveryDate    DateTime           @default(now())
+  notes           String?
+  totalItemsCount Int                @default(0)
+  createdAt       DateTime           @default(now())
+
+  shop            Shop               @relation(fields: [shopId], references: [id])
+  items           DeliveryItem[]
+  transactions    StockTransaction[]
+
+  @@index([shopId])
+  @@index([deliveryDate])
+}
+
+model DeliveryItem {
+  id                   String   @id @default(cuid())
+  deliveryId           String
+  productId            String
+  quantity             Float
+  unit                 String
+  packageDisplay       String
+  availableStockBefore Float
+  stockDeficit         Float?
+
+  delivery             Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  product              Product  @relation(fields: [productId], references: [id])
+
+  @@index([deliveryId])
+  @@index([productId])
+}
+
+model StockAdjustment {
+  id             String             @id @default(cuid())
+  adjustmentCode String             @unique
+  productId      String
+  adjustmentQty  Float
+  previousStock  Float
+  newStock       Float
+  unit           String
+  packageDisplay String
+  reason         AdjustmentReason
+  notes          String?
+  createdAt      DateTime           @default(now())
+
+  product        Product            @relation(fields: [productId], references: [id])
+  transactions   StockTransaction[]
+
+  @@index([productId])
+  @@index([createdAt])
+}
+
+model StockTransaction {
+  id              String           @id @default(cuid())
+  productId       String
+  type            TransactionType
+  quantity        Float            // Signed (+ for inward/opening, - for dispatch/delivery)
+  balanceAfter    Float
+  unit            String
+  packageDisplay  String
+  partyName       String?          // Supplier / Shop / Reason
+  referenceNo     String?          // DLV-00001 / STK-00001 / ADJ-00001
+  notes           String?
+  transactionDate DateTime         @default(now())
+  createdAt       DateTime         @default(now())
+
+  stockInId       String?
+  deliveryId      String?
+  adjustmentId    String?
+
+  product         Product          @relation(fields: [productId], references: [id])
+  stockIn         StockIn?         @relation(fields: [stockInId], references: [id])
+  delivery        Delivery?        @relation(fields: [deliveryId], references: [id])
+  adjustment      StockAdjustment? @relation(fields: [adjustmentId], references: [id])
+
+  @@index([productId, transactionDate])
+  @@index([type])
+  @@index([transactionDate])
+}
