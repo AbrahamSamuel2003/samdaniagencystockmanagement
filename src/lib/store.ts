@@ -11,6 +11,7 @@ import {
   AdjustmentReason,
 } from "./types";
 import { generateCode } from "./utils";
+import { broadcastStateChange } from "./realtime";
 
 const STORAGE_KEY = "sd_stock_management_v1";
 
@@ -292,27 +293,10 @@ export class StockStore {
     return initial;
   }
 
-  // --- BRAND ACTIONS ---
+  // --- BRAND ACTIONS (Instant 0ms Optimistic + Background Cloud + Realtime Broadcast) ---
   static async addBrand(name: string, code?: string): Promise<Brand> {
-    try {
-      const res = await fetch("/api/brands", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, code }),
-      });
-      if (res.ok) {
-        await this.fetchLiveState();
-        const state = this.getState();
-        const created = state.brands.find((b) => b.name === name.trim());
-        if (created) return created;
-      }
-    } catch (e) {
-      console.error("DB addBrand error:", e);
-    }
-
-    // Fallback local update
     const state = this.getState();
-    const newBrand: Brand = {
+    const tempBrand: Brand = {
       id: `b_${Date.now()}`,
       name: name.trim(),
       code: code ? code.trim().toUpperCase() : name.slice(0, 3).toUpperCase(),
@@ -320,31 +304,40 @@ export class StockStore {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    state.brands.unshift(newBrand);
+
+    // 1. Instant Optimistic Render
+    state.brands.unshift(tempBrand);
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
-    return newBrand;
+
+    // 2. Background Cloud Sync + WebSocket Broadcast
+    try {
+      const res = await fetch("/api/brands", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, code }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data) {
+          tempBrand.id = json.data.id;
+        }
+        broadcastStateChange("brand_add");
+      }
+    } catch (e) {
+      console.error("DB addBrand error:", e);
+    }
+
+    return tempBrand;
   }
 
   static async updateBrand(id: string, name: string, code?: string, status: "ACTIVE" | "INACTIVE" = "ACTIVE"): Promise<Brand | null> {
-    try {
-      const res = await fetch(`/api/brands/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, code, status }),
-      });
-      if (res.ok) {
-        await this.fetchLiveState();
-        return this.getState().brands.find((b) => b.id === id) || null;
-      }
-    } catch (e) {
-      console.error("DB updateBrand error:", e);
-    }
-
     const state = this.getState();
     const idx = state.brands.findIndex((b) => b.id === id);
     if (idx === -1) return null;
+
+    // 1. Instant Optimistic Render
     state.brands[idx] = {
       ...state.brands[idx],
       name: name.trim(),
@@ -355,21 +348,28 @@ export class StockStore {
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
+
+    // 2. Background Cloud Sync + WebSocket Broadcast
+    try {
+      const res = await fetch(`/api/brands/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, code, status }),
+      });
+      if (res.ok) {
+        broadcastStateChange("brand_update");
+      }
+    } catch (e) {
+      console.error("DB updateBrand error:", e);
+    }
+
     return state.brands[idx];
   }
 
   static async deleteBrand(id: string, cascadeProducts: boolean = true): Promise<boolean> {
-    try {
-      const res = await fetch(`/api/brands/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        await this.fetchLiveState();
-        return true;
-      }
-    } catch (e) {
-      console.error("DB deleteBrand error:", e);
-    }
-
     const state = this.getState();
+
+    // 1. Instant Optimistic Render
     state.brands = state.brands.filter((b) => b.id !== id);
     if (cascadeProducts) {
       state.products = state.products.filter((p) => p.brandId !== id);
@@ -377,10 +377,21 @@ export class StockStore {
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
+
+    // 2. Background Cloud Sync + WebSocket Broadcast
+    try {
+      const res = await fetch(`/api/brands/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        broadcastStateChange("brand_delete");
+      }
+    } catch (e) {
+      console.error("DB deleteBrand error:", e);
+    }
+
     return true;
   }
 
-  // --- PRODUCT ACTIONS ---
+  // --- PRODUCT ACTIONS (Instant 0ms Optimistic + Background Cloud + Realtime Broadcast) ---
   static async addProduct(data: {
     brandId: string;
     name: string;
@@ -393,29 +404,13 @@ export class StockStore {
     openingStock?: number;
     lowStockLimit?: number;
   }): Promise<Product> {
-    try {
-      const res = await fetch("/api/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (res.ok) {
-        await this.fetchLiveState();
-        const state = this.getState();
-        const created = state.products.find((p) => p.name === data.name.trim() && p.brandId === data.brandId);
-        if (created) return created;
-      }
-    } catch (e) {
-      console.error("DB addProduct error:", e);
-    }
-
-    // Fallback local update
     const state = this.getState();
     const brand = state.brands.find((b) => b.id === data.brandId);
     const brandName = brand ? brand.name : "General";
     const opening = data.openingStock || 0;
     const now = new Date().toISOString();
-    const newProduct: Product = {
+
+    const tempProduct: Product = {
       id: `p_${Date.now()}`,
       brandId: data.brandId,
       brandName,
@@ -433,11 +428,32 @@ export class StockStore {
       createdAt: now,
       updatedAt: now,
     };
-    state.products.unshift(newProduct);
+
+    // 1. Instant Optimistic Render
+    state.products.unshift(tempProduct);
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
-    return newProduct;
+
+    // 2. Background Cloud Sync + WebSocket Broadcast
+    try {
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data) {
+          tempProduct.id = json.data.id;
+        }
+        broadcastStateChange("product_add");
+      }
+    } catch (e) {
+      console.error("DB addProduct error:", e);
+    }
+
+    return tempProduct;
   }
 
   static async updateProduct(
@@ -455,24 +471,12 @@ export class StockStore {
       status?: "ACTIVE" | "INACTIVE";
     }
   ): Promise<Product | null> {
-    try {
-      const res = await fetch(`/api/products/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (res.ok) {
-        await this.fetchLiveState();
-        return this.getState().products.find((p) => p.id === id) || null;
-      }
-    } catch (e) {
-      console.error("DB updateProduct error:", e);
-    }
-
     const state = this.getState();
     const idx = state.products.findIndex((p) => p.id === id);
     if (idx === -1) return null;
     const brand = state.brands.find((b) => b.id === data.brandId);
+
+    // 1. Instant Optimistic Render
     state.products[idx] = {
       ...state.products[idx],
       brandId: data.brandId,
@@ -491,48 +495,50 @@ export class StockStore {
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
+
+    // 2. Background Cloud Sync + WebSocket Broadcast
+    try {
+      const res = await fetch(`/api/products/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        broadcastStateChange("product_update");
+      }
+    } catch (e) {
+      console.error("DB updateProduct error:", e);
+    }
+
     return state.products[idx];
   }
 
   static async deleteProduct(id: string): Promise<boolean> {
+    const state = this.getState();
+
+    // 1. Instant Optimistic Render
+    state.products = state.products.filter((p) => p.id !== id);
+    this.cachedState = state;
+    this.saveLocalState(state);
+    this.notifyListeners();
+
+    // 2. Background Cloud Sync + WebSocket Broadcast
     try {
       const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
       if (res.ok) {
-        await this.fetchLiveState();
-        return true;
+        broadcastStateChange("product_delete");
       }
     } catch (e) {
       console.error("DB deleteProduct error:", e);
     }
 
-    const state = this.getState();
-    state.products = state.products.filter((p) => p.id !== id);
-    this.cachedState = state;
-    this.saveLocalState(state);
-    this.notifyListeners();
     return true;
   }
 
   // --- SUPPLIER ACTIONS ---
   static async addSupplier(data: { name: string; phone?: string; address?: string; notes?: string }): Promise<Supplier> {
-    try {
-      const res = await fetch("/api/masters/suppliers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (res.ok) {
-        await this.fetchLiveState();
-        const state = this.getState();
-        const created = state.suppliers.find((s) => s.name === data.name.trim());
-        if (created) return created;
-      }
-    } catch (e) {
-      console.error("DB addSupplier error:", e);
-    }
-
     const state = this.getState();
-    const newSupplier: Supplier = {
+    const tempSupplier: Supplier = {
       id: `s_${Date.now()}`,
       name: data.name.trim(),
       phone: data.phone?.trim(),
@@ -542,33 +548,32 @@ export class StockStore {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    state.suppliers.unshift(newSupplier);
+
+    state.suppliers.unshift(tempSupplier);
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
-    return newSupplier;
-  }
 
-  // --- SHOP ACTIONS ---
-  static async addShop(data: { name: string; contactPerson?: string; phone?: string; address?: string; notes?: string }): Promise<Shop> {
     try {
-      const res = await fetch("/api/masters/shops", {
+      const res = await fetch("/api/masters/suppliers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
       if (res.ok) {
-        await this.fetchLiveState();
-        const state = this.getState();
-        const created = state.shops.find((sh) => sh.name === data.name.trim());
-        if (created) return created;
+        broadcastStateChange("supplier_add");
       }
     } catch (e) {
-      console.error("DB addShop error:", e);
+      console.error("DB addSupplier error:", e);
     }
 
+    return tempSupplier;
+  }
+
+  // --- SHOP ACTIONS ---
+  static async addShop(data: { name: string; contactPerson?: string; phone?: string; address?: string; notes?: string }): Promise<Shop> {
     const state = this.getState();
-    const newShop: Shop = {
+    const tempShop: Shop = {
       id: `sh_${Date.now()}`,
       name: data.name.trim(),
       contactPerson: data.contactPerson?.trim(),
@@ -579,11 +584,26 @@ export class StockStore {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    state.shops.unshift(newShop);
+
+    state.shops.unshift(tempShop);
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
-    return newShop;
+
+    try {
+      const res = await fetch("/api/masters/shops", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        broadcastStateChange("shop_add");
+      }
+    } catch (e) {
+      console.error("DB addShop error:", e);
+    }
+
+    return tempShop;
   }
 
   // --- STOCK-IN ATOMIC ACTION ---
@@ -598,21 +618,6 @@ export class StockStore {
       inputBoxes?: number;
     }>;
   }): Promise<StockIn> {
-    try {
-      const res = await fetch("/api/stock-in", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (res.ok) {
-        await this.fetchLiveState();
-        const state = this.getState();
-        if (state.stockIns.length > 0) return state.stockIns[0];
-      }
-    } catch (e) {
-      console.error("DB recordStockIn error:", e);
-    }
-
     const state = this.getState();
     const code = generateCode("STK", state.counters.stockIn);
     state.counters.stockIn += 1;
@@ -651,10 +656,26 @@ export class StockStore {
       createdAt: now,
     };
 
+    // 1. Instant Optimistic Render
     state.stockIns.unshift(newStockIn);
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
+
+    // 2. Background Cloud Sync + WebSocket Broadcast
+    try {
+      const res = await fetch("/api/stock-in", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        broadcastStateChange("stock_in");
+      }
+    } catch (e) {
+      console.error("DB recordStockIn error:", e);
+    }
+
     return newStockIn;
   }
 
@@ -668,21 +689,6 @@ export class StockStore {
       quantity: number;
     }>;
   }): Promise<Delivery> {
-    try {
-      const res = await fetch("/api/deliveries", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (res.ok) {
-        await this.fetchLiveState();
-        const state = this.getState();
-        if (state.deliveries.length > 0) return state.deliveries[0];
-      }
-    } catch (e) {
-      console.error("DB recordDelivery error:", e);
-    }
-
     const state = this.getState();
     const code = generateCode("DLV", state.counters.delivery);
     state.counters.delivery += 1;
@@ -723,10 +729,26 @@ export class StockStore {
       createdAt: now,
     };
 
+    // 1. Instant Optimistic Render
     state.deliveries.unshift(newDelivery);
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
+
+    // 2. Background Cloud Sync + WebSocket Broadcast
+    try {
+      const res = await fetch("/api/deliveries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        broadcastStateChange("delivery");
+      }
+    } catch (e) {
+      console.error("DB recordDelivery error:", e);
+    }
+
     return newDelivery;
   }
 
@@ -737,21 +759,6 @@ export class StockStore {
     reason: AdjustmentReason;
     notes?: string;
   }): Promise<StockAdjustment> {
-    try {
-      const res = await fetch("/api/adjustments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (res.ok) {
-        await this.fetchLiveState();
-        const state = this.getState();
-        if (state.adjustments.length > 0) return state.adjustments[0];
-      }
-    } catch (e) {
-      console.error("DB recordAdjustment error:", e);
-    }
-
     const state = this.getState();
     const product = state.products.find((p) => p.id === data.productId);
     const prevStock = product ? product.currentStock : 0;
@@ -780,10 +787,26 @@ export class StockStore {
       createdAt: now,
     };
 
+    // 1. Instant Optimistic Render
     state.adjustments.unshift(newAdj);
     this.cachedState = state;
     this.saveLocalState(state);
     this.notifyListeners();
+
+    // 2. Background Cloud Sync + WebSocket Broadcast
+    try {
+      const res = await fetch("/api/adjustments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        broadcastStateChange("adjustment");
+      }
+    } catch (e) {
+      console.error("DB recordAdjustment error:", e);
+    }
+
     return newAdj;
   }
 }

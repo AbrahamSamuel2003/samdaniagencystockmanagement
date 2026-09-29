@@ -1,11 +1,16 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { MobileBottomNav } from "./MobileBottomNav";
+import { initRealtimeSync } from "@/lib/realtime";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    initRealtimeSync();
+  }, []);
+
   return (
     <div className="min-h-screen flex bg-slate-50 text-slate-900 antialiased font-sans">
       {/* Desktop Sidebar (hidden on mobile) */}
