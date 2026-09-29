@@ -13,7 +13,7 @@ import {
 import { generateCode } from "./utils";
 import { broadcastStateChange } from "./realtime";
 
-const STORAGE_KEY = "sd_stock_management_v1";
+const STORAGE_KEY = "sd_stock_management_db_cache_v2";
 
 export const DEFAULT_UNITS: Unit[] = [
   { id: "u1", name: "Kilogram", symbol: "kg", isDecimal: true },
@@ -24,151 +24,6 @@ export const DEFAULT_UNITS: Unit[] = [
   { id: "u6", name: "Box", symbol: "box", isDecimal: false },
   { id: "u7", name: "Bottle", symbol: "btl", isDecimal: false },
   { id: "u8", name: "Piece", symbol: "pcs", isDecimal: false },
-];
-
-export const DEFAULT_BRANDS: Brand[] = [
-  { id: "b1", name: "Aachi", code: "ACH", status: "ACTIVE", createdAt: "2026-09-01T08:00:00.000Z", updatedAt: "2026-09-01T08:00:00.000Z" },
-  { id: "b2", name: "Sun", code: "SUN", status: "ACTIVE", createdAt: "2026-09-01T08:00:00.000Z", updatedAt: "2026-09-01T08:00:00.000Z" },
-  { id: "b3", name: "Sakthi", code: "SKT", status: "ACTIVE", createdAt: "2026-09-01T08:00:00.000Z", updatedAt: "2026-09-01T08:00:00.000Z" },
-  { id: "b4", name: "Anjali", code: "ANJ", status: "ACTIVE", createdAt: "2026-09-01T08:00:00.000Z", updatedAt: "2026-09-01T08:00:00.000Z" },
-  { id: "b5", name: "Gold Winner", code: "GWN", status: "ACTIVE", createdAt: "2026-09-01T08:00:00.000Z", updatedAt: "2026-09-01T08:00:00.000Z" },
-  { id: "b6", name: "Local Brand", code: "LOC", status: "ACTIVE", createdAt: "2026-09-01T08:00:00.000Z", updatedAt: "2026-09-01T08:00:00.000Z" },
-];
-
-export const DEFAULT_SUPPLIERS: Supplier[] = [
-  { id: "s1", name: "ABC Traders", phone: "+91 98450 11223", address: "Wholesale Market, Sector 4", notes: "Primary spice distributor", status: "ACTIVE", createdAt: "2026-09-01T08:00:00.000Z", updatedAt: "2026-09-01T08:00:00.000Z" },
-  { id: "s2", name: "XYZ Distributors", phone: "+91 97890 44556", address: "Industrial Estate, Phase 2", notes: "Oil and ghee supplier", status: "ACTIVE", createdAt: "2026-09-01T08:00:00.000Z", updatedAt: "2026-09-01T08:00:00.000Z" },
-  { id: "s3", name: "Sri Murugan Agencies", phone: "+91 94430 77889", address: "Grain Market, Main Road", notes: "Local flour and masala supplier", status: "ACTIVE", createdAt: "2026-09-01T08:00:00.000Z", updatedAt: "2026-09-01T08:00:00.000Z" },
-];
-
-export const DEFAULT_SHOPS: Shop[] = [
-  { id: "sh1", name: "Sri Lakshmi Stores", contactPerson: "Ramasamy", phone: "+91 98765 43210", address: "14 Bazaar Street, Town", notes: "Daily evening dispatch route", status: "ACTIVE", createdAt: "2026-09-01T08:00:00.000Z", updatedAt: "2026-09-01T08:00:00.000Z" },
-  { id: "sh2", name: "ABC Supermarket", contactPerson: "Nagarajan", phone: "+91 98765 12345", address: "45 Bypass Road, Cross 2", notes: "Bulk weekly delivery on Mondays", status: "ACTIVE", createdAt: "2026-09-01T08:00:00.000Z", updatedAt: "2026-09-01T08:00:00.000Z" },
-  { id: "sh3", name: "New Star Stores", contactPerson: "Mohamed", phone: "+91 97123 45678", address: "8 Anna Nagar West", notes: "Cash on delivery customer", status: "ACTIVE", createdAt: "2026-09-01T08:00:00.000Z", updatedAt: "2026-09-01T08:00:00.000Z" },
-  { id: "sh4", name: "Anand Agencies", contactPerson: "Anand", phone: "+91 94440 98765", address: "22 Station Road", notes: "Retail partner", status: "ACTIVE", createdAt: "2026-09-01T08:00:00.000Z", updatedAt: "2026-09-01T08:00:00.000Z" },
-];
-
-export const DEFAULT_PRODUCTS: Product[] = [
-  {
-    id: "p1",
-    brandId: "b1",
-    brandName: "Aachi",
-    name: "Turmeric Powder",
-    packageSize: 100,
-    packageUnit: "g",
-    stockUnit: "kg",
-    hasBoxConversion: false,
-    openingStock: 25,
-    currentStock: 25,
-    lowStockLimit: 10,
-    status: "ACTIVE",
-    createdAt: "2026-09-01T09:00:00.000Z",
-    updatedAt: "2026-09-01T09:00:00.000Z",
-  },
-  {
-    id: "p2",
-    brandId: "b1",
-    brandName: "Aachi",
-    name: "Chilli Powder",
-    packageSize: 100,
-    packageUnit: "g",
-    stockUnit: "pkt",
-    hasBoxConversion: true,
-    unitsPerBox: 20,
-    subUnitName: "Packet",
-    openingStock: 100,
-    currentStock: 100,
-    lowStockLimit: 30,
-    status: "ACTIVE",
-    createdAt: "2026-09-01T09:00:00.000Z",
-    updatedAt: "2026-09-01T09:00:00.000Z",
-  },
-  {
-    id: "p3",
-    brandId: "b1",
-    brandName: "Aachi",
-    name: "Chilli Powder",
-    packageSize: 500,
-    packageUnit: "g",
-    stockUnit: "pkt",
-    hasBoxConversion: true,
-    unitsPerBox: 10,
-    subUnitName: "Packet",
-    openingStock: 50,
-    currentStock: 4,
-    lowStockLimit: 15,
-    status: "ACTIVE",
-    createdAt: "2026-09-01T09:00:00.000Z",
-    updatedAt: "2026-09-01T09:00:00.000Z",
-  },
-  {
-    id: "p4",
-    brandId: "b1",
-    brandName: "Aachi",
-    name: "Coriander Powder",
-    packageSize: 100,
-    packageUnit: "g",
-    stockUnit: "kg",
-    hasBoxConversion: false,
-    openingStock: 20,
-    currentStock: 18,
-    lowStockLimit: 5,
-    status: "ACTIVE",
-    createdAt: "2026-09-01T09:00:00.000Z",
-    updatedAt: "2026-09-01T09:00:00.000Z",
-  },
-  {
-    id: "p5",
-    brandId: "b2",
-    brandName: "Sun",
-    name: "Sunflower Oil",
-    packageSize: 1,
-    packageUnit: "L",
-    stockUnit: "box",
-    hasBoxConversion: true,
-    unitsPerBox: 12,
-    subUnitName: "Bottle",
-    openingStock: 20,
-    currentStock: 20,
-    lowStockLimit: 5,
-    status: "ACTIVE",
-    createdAt: "2026-09-01T09:00:00.000Z",
-    updatedAt: "2026-09-01T09:00:00.000Z",
-  },
-  {
-    id: "p6",
-    brandId: "b2",
-    brandName: "Sun",
-    name: "Sunflower Oil",
-    packageSize: 5,
-    packageUnit: "L",
-    stockUnit: "box",
-    hasBoxConversion: true,
-    unitsPerBox: 4,
-    subUnitName: "Can",
-    openingStock: 10,
-    currentStock: 3,
-    lowStockLimit: 4,
-    status: "ACTIVE",
-    createdAt: "2026-09-01T09:00:00.000Z",
-    updatedAt: "2026-09-01T09:00:00.000Z",
-  },
-  {
-    id: "p7",
-    brandId: "b4",
-    brandName: "Anjali",
-    name: "Ghee",
-    packageSize: 1,
-    packageUnit: "kg",
-    stockUnit: "kg",
-    hasBoxConversion: false,
-    openingStock: 15,
-    currentStock: -2,
-    lowStockLimit: 5,
-    status: "ACTIVE",
-    createdAt: "2026-09-01T09:00:00.000Z",
-    updatedAt: "2026-09-01T09:00:00.000Z",
-  },
 ];
 
 export interface AppState {
@@ -189,10 +44,10 @@ export interface AppState {
 
 export function getInitialState(): AppState {
   return {
-    brands: DEFAULT_BRANDS,
-    products: DEFAULT_PRODUCTS,
-    suppliers: DEFAULT_SUPPLIERS,
-    shops: DEFAULT_SHOPS,
+    brands: [],
+    products: [],
+    suppliers: [],
+    shops: [],
     stockIns: [],
     deliveries: [],
     adjustments: [],
@@ -232,9 +87,7 @@ export class StockStore {
     try {
       const serialized = localStorage.getItem(STORAGE_KEY);
       if (!serialized) {
-        const initial = getInitialState();
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
-        return initial;
+        return getInitialState();
       }
       return JSON.parse(serialized);
     } catch {
@@ -269,7 +122,7 @@ export class StockStore {
   }
 
   /**
-   * Fetches latest live data from Supabase PostgreSQL Database
+   * Fetches latest authoritative data directly from Supabase PostgreSQL Database
    */
   static async fetchLiveState(): Promise<AppState> {
     if (typeof window === "undefined") return getInitialState();
@@ -286,7 +139,7 @@ export class StockStore {
         }
       }
     } catch (err) {
-      console.warn("Live DB fetch fallback to cache:", err);
+      console.warn("Live DB fetch error:", err);
     } finally {
       this.isFetching = false;
     }
@@ -297,10 +150,10 @@ export class StockStore {
     const initial = getInitialState();
     this.cachedState = initial;
     if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
+      localStorage.removeItem(STORAGE_KEY);
     }
     this.notifyListeners();
-    broadcastStateChange("reset", initial);
+    this.fetchLiveState();
     return initial;
   }
 
@@ -316,14 +169,13 @@ export class StockStore {
       updatedAt: new Date().toISOString(),
     };
 
-    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
+    // 1. Optimistic Local Render + Broadcast
     state.brands.unshift(tempBrand);
     this.cachedState = state;
-    this.saveLocalState(state);
     this.notifyListeners();
     broadcastStateChange("brand_add", state);
 
-    // 2. Background Cloud Persistence
+    // 2. Authoritative PostgreSQL Cloud Persistence
     try {
       const res = await fetch("/api/brands", {
         method: "POST",
@@ -335,6 +187,7 @@ export class StockStore {
         if (json.data) {
           tempBrand.id = json.data.id;
         }
+        await this.fetchLiveState();
       }
     } catch (e) {
       console.error("DB addBrand error:", e);
@@ -348,7 +201,7 @@ export class StockStore {
     const idx = state.brands.findIndex((b) => b.id === id);
     if (idx === -1) return null;
 
-    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
+    // 1. Optimistic Local Render + Broadcast
     state.brands[idx] = {
       ...state.brands[idx],
       name: name.trim(),
@@ -357,17 +210,19 @@ export class StockStore {
       updatedAt: new Date().toISOString(),
     };
     this.cachedState = state;
-    this.saveLocalState(state);
     this.notifyListeners();
     broadcastStateChange("brand_update", state);
 
-    // 2. Background Cloud Persistence
+    // 2. Authoritative PostgreSQL Cloud Persistence
     try {
-      await fetch(`/api/brands/${id}`, {
+      const res = await fetch(`/api/brands/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, code, status }),
       });
+      if (res.ok) {
+        await this.fetchLiveState();
+      }
     } catch (e) {
       console.error("DB updateBrand error:", e);
     }
@@ -378,19 +233,21 @@ export class StockStore {
   static async deleteBrand(id: string, cascadeProducts: boolean = true): Promise<boolean> {
     const state = this.getState();
 
-    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
+    // 1. Optimistic Local Render + Broadcast
     state.brands = state.brands.filter((b) => b.id !== id);
     if (cascadeProducts) {
       state.products = state.products.filter((p) => p.brandId !== id);
     }
     this.cachedState = state;
-    this.saveLocalState(state);
     this.notifyListeners();
     broadcastStateChange("brand_delete", state);
 
-    // 2. Background Cloud Persistence
+    // 2. Authoritative PostgreSQL Cloud Persistence
     try {
-      await fetch(`/api/brands/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/brands/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        await this.fetchLiveState();
+      }
     } catch (e) {
       console.error("DB deleteBrand error:", e);
     }
@@ -436,14 +293,13 @@ export class StockStore {
       updatedAt: now,
     };
 
-    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
+    // 1. Optimistic Local Render + Broadcast
     state.products.unshift(tempProduct);
     this.cachedState = state;
-    this.saveLocalState(state);
     this.notifyListeners();
     broadcastStateChange("product_add", state);
 
-    // 2. Background Cloud Persistence
+    // 2. Authoritative PostgreSQL Cloud Persistence
     try {
       const res = await fetch("/api/products", {
         method: "POST",
@@ -455,6 +311,7 @@ export class StockStore {
         if (json.data) {
           tempProduct.id = json.data.id;
         }
+        await this.fetchLiveState();
       }
     } catch (e) {
       console.error("DB addProduct error:", e);
@@ -483,7 +340,7 @@ export class StockStore {
     if (idx === -1) return null;
     const brand = state.brands.find((b) => b.id === data.brandId);
 
-    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
+    // 1. Optimistic Local Render + Broadcast
     state.products[idx] = {
       ...state.products[idx],
       brandId: data.brandId,
@@ -500,17 +357,19 @@ export class StockStore {
       updatedAt: new Date().toISOString(),
     };
     this.cachedState = state;
-    this.saveLocalState(state);
     this.notifyListeners();
     broadcastStateChange("product_update", state);
 
-    // 2. Background Cloud Persistence
+    // 2. Authoritative PostgreSQL Cloud Persistence
     try {
-      await fetch(`/api/products/${id}`, {
+      const res = await fetch(`/api/products/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
+      if (res.ok) {
+        await this.fetchLiveState();
+      }
     } catch (e) {
       console.error("DB updateProduct error:", e);
     }
@@ -521,16 +380,18 @@ export class StockStore {
   static async deleteProduct(id: string): Promise<boolean> {
     const state = this.getState();
 
-    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
+    // 1. Optimistic Local Render + Broadcast
     state.products = state.products.filter((p) => p.id !== id);
     this.cachedState = state;
-    this.saveLocalState(state);
     this.notifyListeners();
     broadcastStateChange("product_delete", state);
 
-    // 2. Background Cloud Persistence
+    // 2. Authoritative PostgreSQL Cloud Persistence
     try {
-      await fetch(`/api/products/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        await this.fetchLiveState();
+      }
     } catch (e) {
       console.error("DB deleteProduct error:", e);
     }
@@ -554,16 +415,18 @@ export class StockStore {
 
     state.suppliers.unshift(tempSupplier);
     this.cachedState = state;
-    this.saveLocalState(state);
     this.notifyListeners();
     broadcastStateChange("supplier_add", state);
 
     try {
-      await fetch("/api/masters/suppliers", {
+      const res = await fetch("/api/masters/suppliers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
+      if (res.ok) {
+        await this.fetchLiveState();
+      }
     } catch (e) {
       console.error("DB addSupplier error:", e);
     }
@@ -588,16 +451,18 @@ export class StockStore {
 
     state.shops.unshift(tempShop);
     this.cachedState = state;
-    this.saveLocalState(state);
     this.notifyListeners();
     broadcastStateChange("shop_add", state);
 
     try {
-      await fetch("/api/masters/shops", {
+      const res = await fetch("/api/masters/shops", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
+      if (res.ok) {
+        await this.fetchLiveState();
+      }
     } catch (e) {
       console.error("DB addShop error:", e);
     }
@@ -655,20 +520,22 @@ export class StockStore {
       createdAt: now,
     };
 
-    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
+    // 1. Optimistic Local Render + Broadcast
     state.stockIns.unshift(newStockIn);
     this.cachedState = state;
-    this.saveLocalState(state);
     this.notifyListeners();
     broadcastStateChange("stock_in", state);
 
-    // 2. Background Cloud Persistence
+    // 2. Authoritative PostgreSQL Cloud Persistence
     try {
-      await fetch("/api/stock-in", {
+      const res = await fetch("/api/stock-in", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
+      if (res.ok) {
+        await this.fetchLiveState();
+      }
     } catch (e) {
       console.error("DB recordStockIn error:", e);
     }
@@ -726,20 +593,22 @@ export class StockStore {
       createdAt: now,
     };
 
-    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
+    // 1. Optimistic Local Render + Broadcast
     state.deliveries.unshift(newDelivery);
     this.cachedState = state;
-    this.saveLocalState(state);
     this.notifyListeners();
     broadcastStateChange("delivery", state);
 
-    // 2. Background Cloud Persistence
+    // 2. Authoritative PostgreSQL Cloud Persistence
     try {
-      await fetch("/api/deliveries", {
+      const res = await fetch("/api/deliveries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
+      if (res.ok) {
+        await this.fetchLiveState();
+      }
     } catch (e) {
       console.error("DB recordDelivery error:", e);
     }
@@ -782,20 +651,22 @@ export class StockStore {
       createdAt: now,
     };
 
-    // 1. Instant 0ms Optimistic Local Update & Instant WebSocket Broadcast
+    // 1. Optimistic Local Render + Broadcast
     state.adjustments.unshift(newAdj);
     this.cachedState = state;
-    this.saveLocalState(state);
     this.notifyListeners();
     broadcastStateChange("adjustment", state);
 
-    // 2. Background Cloud Persistence
+    // 2. Authoritative PostgreSQL Cloud Persistence
     try {
-      await fetch("/api/adjustments", {
+      const res = await fetch("/api/adjustments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
+      if (res.ok) {
+        await this.fetchLiveState();
+      }
     } catch (e) {
       console.error("DB recordAdjustment error:", e);
     }
