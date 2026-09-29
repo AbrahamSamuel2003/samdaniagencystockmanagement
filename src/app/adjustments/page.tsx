@@ -9,6 +9,8 @@ import {
   CheckCircle2,
   Download,
   Calendar,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { StockStore, AppState } from "@/lib/store";
 import { AdjustmentReason } from "@/lib/types";
@@ -40,6 +42,7 @@ function AdjustmentsContent() {
 
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [isLogOpen, setIsLogOpen] = useState(false);
 
   useEffect(() => {
     const s = StockStore.getState();
@@ -344,85 +347,120 @@ function AdjustmentsContent() {
         </form>
       </div>
 
-      {/* Adjustments History 2-Cards-Per-Row Grid */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center space-x-1.5 text-xs font-bold text-slate-900 uppercase">
-            <History className="w-4 h-4 text-blue-600" />
-            <span>Adjustment Log ({state.adjustments.length})</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {state.adjustments.length === 0 ? (
-            <div className="col-span-full py-8 text-center text-xs text-slate-400 bg-white rounded-2xl border border-slate-200">
-              No physical adjustments recorded yet.
+      {/* Adjustments History 2-Cards-Per-Row Grid (Collapsible, Closed by Default) */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setIsLogOpen((prev) => !prev)}
+          className="w-full p-4 flex items-center justify-between text-left hover:bg-slate-50 transition-colors focus:outline-none"
+        >
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <History className="w-4 h-4" />
             </div>
-          ) : (
-            state.adjustments.map((a) => {
-              const isNeg = a.adjustmentQty < 0;
-              return (
-                <div
-                  key={a.id}
-                  className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-xs flex flex-col justify-between hover:border-blue-300 transition-all space-y-2.5"
-                >
-                  <div>
-                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
-                      <span className="font-bold text-blue-700 text-xs">
-                        {a.adjustmentCode}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium flex items-center">
-                        <Calendar className="w-3 h-3 mr-1" />
-                        {formatDate(a.createdAt)}
-                      </span>
-                    </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-bold text-slate-900 uppercase">
+                  Adjustment Log
+                </span>
+                <span className="px-2 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-700 rounded-full border border-slate-200">
+                  {state.adjustments.length}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium">
+                {isLogOpen ? "Click to collapse audit records" : "Click to view historical physical count adjustments"}
+              </p>
+            </div>
+          </div>
 
-                    <div className="mt-2">
-                      <div className="font-bold text-slate-900 text-xs truncate">
-                        {a.brandName} - {a.productName}
-                      </div>
-                      <div className="text-[11px] text-slate-500 font-medium">
-                        Size: {a.packageDisplay}
-                      </div>
-                    </div>
+          <div className="flex items-center space-x-2 text-slate-400">
+            <span className="text-[11px] font-semibold text-blue-600 hidden sm:inline">
+              {isLogOpen ? "Hide Log" : "Show Log"}
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
+              {isLogOpen ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+            </div>
+          </div>
+        </button>
 
-                    <div className="mt-1.5">
-                      <span className="inline-block px-2 py-0.5 bg-slate-100 rounded-md text-slate-700 text-[10px] font-semibold border border-slate-200">
-                        {a.reason.replace(/_/g, " ")}
-                      </span>
-                    </div>
-
-                    {a.notes && (
-                      <div className="mt-1.5 text-[11px] text-slate-500 line-clamp-1">
-                        Note: {a.notes}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <div>
-                      <span className="text-[10px] text-slate-400 block uppercase font-semibold">
-                        Impact
-                      </span>
-                      <span className={`font-bold ${isNeg ? "text-red-600" : "text-blue-700"}`}>
-                        {a.adjustmentQty > 0 ? "+" : ""}{a.adjustmentQty} {a.unit}
-                      </span>
-                    </div>
-
-                    <div className="text-right">
-                      <span className="text-[10px] text-slate-400 block uppercase font-semibold">
-                        New Balance
-                      </span>
-                      <span className="font-bold text-slate-900">
-                        {a.newStock} {a.unit}
-                      </span>
-                    </div>
-                  </div>
+        {isLogOpen && (
+          <div className="p-4 pt-1 border-t border-slate-100 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {state.adjustments.length === 0 ? (
+                <div className="col-span-full py-8 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-slate-200">
+                  No physical adjustments recorded yet.
                 </div>
-              );
-            })
-          )}
-        </div>
+              ) : (
+                state.adjustments.map((a) => {
+                  const isNeg = a.adjustmentQty < 0;
+                  return (
+                    <div
+                      key={a.id}
+                      className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-xs flex flex-col justify-between hover:border-blue-300 transition-all space-y-2.5"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                          <span className="font-bold text-blue-700 text-xs">
+                            {a.adjustmentCode}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium flex items-center">
+                            <Calendar className="w-3 h-3 mr-1" />
+                            {formatDate(a.createdAt)}
+                          </span>
+                        </div>
+
+                        <div className="mt-2">
+                          <div className="font-bold text-slate-900 text-xs truncate">
+                            {a.brandName} - {a.productName}
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-medium">
+                            Size: {a.packageDisplay}
+                          </div>
+                        </div>
+
+                        <div className="mt-1.5">
+                          <span className="inline-block px-2 py-0.5 bg-slate-100 rounded-md text-slate-700 text-[10px] font-semibold border border-slate-200">
+                            {a.reason.replace(/_/g, " ")}
+                          </span>
+                        </div>
+
+                        {a.notes && (
+                          <div className="mt-1.5 text-[11px] text-slate-500 line-clamp-1">
+                            Note: {a.notes}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block uppercase font-semibold">
+                            Impact
+                          </span>
+                          <span className={`font-bold ${isNeg ? "text-red-600" : "text-blue-700"}`}>
+                            {a.adjustmentQty > 0 ? "+" : ""}{a.adjustmentQty} {a.unit}
+                          </span>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-400 block uppercase font-semibold">
+                            New Balance
+                          </span>
+                          <span className="font-bold text-slate-900">
+                            {a.newStock} {a.unit}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
