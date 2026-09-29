@@ -41,7 +41,7 @@ export default function ProductsPage() {
   const [formError, setFormError] = useState("");
 
   const refreshState = () => {
-    setState(StockStore.getState());
+    setState({ ...StockStore.getState() });
   };
 
   useEffect(() => {
@@ -50,6 +50,14 @@ export default function ProductsPage() {
     if (s.brands.length > 0) {
       setBrandId(s.brands[0].id);
     }
+    StockStore.fetchLiveState().then((live) => {
+      setState({ ...live });
+      if (live.brands.length > 0) {
+        setBrandId(live.brands[0].id);
+      }
+    });
+    const unsub = StockStore.subscribe((live) => setState({ ...live }));
+    return () => unsub();
   }, []);
 
   useEffect(() => {
@@ -93,7 +101,7 @@ export default function ProductsPage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
 
@@ -116,7 +124,7 @@ export default function ProductsPage() {
 
     try {
       if (editingProduct) {
-        StockStore.updateProduct(editingProduct.id, {
+        await StockStore.updateProduct(editingProduct.id, {
           brandId,
           name,
           packageSize: Number(packageSize),
@@ -127,9 +135,9 @@ export default function ProductsPage() {
           subUnitName: hasBoxConversion ? subUnitName : undefined,
           lowStockLimit: lowStockLimit !== "" ? Number(lowStockLimit) : undefined,
         });
-        setToastMessage(`Product "${name}" updated successfully.`);
+        setToastMessage(`Product "${name}" updated successfully in database.`);
       } else {
-        StockStore.addProduct({
+        await StockStore.addProduct({
           brandId,
           name,
           packageSize: Number(packageSize),
@@ -141,22 +149,21 @@ export default function ProductsPage() {
           openingStock: openingStock !== "" ? Number(openingStock) : 0,
           lowStockLimit: lowStockLimit !== "" ? Number(lowStockLimit) : undefined,
         });
-        setToastMessage(`Product "${name}" created successfully.`);
+        setToastMessage(`Product "${name}" created successfully in database.`);
       }
 
-      refreshState();
       setIsModalOpen(false);
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : "Failed to save product.");
     }
   };
 
-  const confirmDeleteProduct = () => {
+  const confirmDeleteProduct = async () => {
     if (!productToDelete) return;
-    StockStore.deleteProduct(productToDelete.id);
-    setToastMessage(`Product SKU "${productToDelete.name} (${productToDelete.packageSize} ${productToDelete.packageUnit})" deleted.`);
+    const prodName = `${productToDelete.name} (${productToDelete.packageSize} ${productToDelete.packageUnit})`;
+    await StockStore.deleteProduct(productToDelete.id);
+    setToastMessage(`Product SKU "${prodName}" deleted from database.`);
     setProductToDelete(null);
-    refreshState();
   };
 
   const filteredProducts = useMemo(() => {

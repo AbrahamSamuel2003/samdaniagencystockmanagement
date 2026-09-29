@@ -30,6 +30,9 @@ function ReportsContent() {
 
   useEffect(() => {
     setState(StockStore.getState());
+    StockStore.fetchLiveState().then((live) => setState({ ...live }));
+    const unsub = StockStore.subscribe((live) => setState({ ...live }));
+    return () => unsub();
   }, []);
 
   const filteredTransactions = useMemo(() => {

@@ -31,11 +31,14 @@ export default function BrandsPage() {
   const [formError, setFormError] = useState("");
 
   const refreshState = () => {
-    setState(StockStore.getState());
+    setState({ ...StockStore.getState() });
   };
 
   useEffect(() => {
     setState(StockStore.getState());
+    StockStore.fetchLiveState().then((live) => setState({ ...live }));
+    const unsub = StockStore.subscribe((live) => setState({ ...live }));
+    return () => unsub();
   }, []);
 
   useEffect(() => {
@@ -61,7 +64,7 @@ export default function BrandsPage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
 
@@ -72,26 +75,25 @@ export default function BrandsPage() {
 
     try {
       if (editingBrand) {
-        StockStore.updateBrand(editingBrand.id, name, code, editingBrand.status);
-        setToastMessage(`Brand "${name}" updated successfully.`);
+        await StockStore.updateBrand(editingBrand.id, name, code, editingBrand.status);
+        setToastMessage(`Brand "${name}" updated successfully in database.`);
       } else {
-        StockStore.addBrand(name, code);
-        setToastMessage(`Brand "${name}" created successfully.`);
+        await StockStore.addBrand(name, code);
+        setToastMessage(`Brand "${name}" created successfully in database.`);
       }
-      refreshState();
       setIsModalOpen(false);
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : "Failed to save brand.");
     }
   };
 
-  const confirmDeleteBrand = () => {
+  const confirmDeleteBrand = async () => {
     if (!brandToDelete) return;
     const count = state ? state.products.filter((p) => p.brandId === brandToDelete.id).length : 0;
-    StockStore.deleteBrand(brandToDelete.id, true);
-    setToastMessage(`Brand "${brandToDelete.name}" and ${count} associated SKU(s) deleted.`);
+    const brandName = brandToDelete.name;
+    await StockStore.deleteBrand(brandToDelete.id, true);
+    setToastMessage(`Brand "${brandName}" and ${count} associated SKU(s) deleted from database.`);
     setBrandToDelete(null);
-    refreshState();
   };
 
   const filteredBrands = useMemo(() => {

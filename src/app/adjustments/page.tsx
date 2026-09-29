@@ -47,6 +47,14 @@ function AdjustmentsContent() {
     if (!preSelectedProdId && s.products.length > 0) {
       setProductId(s.products[0].id);
     }
+    StockStore.fetchLiveState().then((live) => {
+      setState({ ...live });
+      if (!preSelectedProdId && live.products.length > 0) {
+        setProductId(live.products[0].id);
+      }
+    });
+    const unsub = StockStore.subscribe((live) => setState({ ...live }));
+    return () => unsub();
   }, [preSelectedProdId]);
 
   const selectedProd = state?.products.find((p) => p.id === productId);
@@ -72,7 +80,7 @@ function AdjustmentsContent() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
     setSuccessMsg("");
@@ -87,7 +95,7 @@ function AdjustmentsContent() {
     }
 
     try {
-      const adj = StockStore.recordAdjustment({
+      const adj = await StockStore.recordAdjustment({
         productId,
         adjustmentQty: Number(adjustmentDiff),
         reason,
@@ -95,14 +103,13 @@ function AdjustmentsContent() {
       });
 
       setSuccessMsg(
-        `Adjustment ${adj.adjustmentCode} recorded: Stock for ${adj.brandName} ${adj.productName} corrected from ${adj.previousStock} to ${adj.newStock} ${adj.unit}.`
+        `Adjustment ${adj.adjustmentCode} recorded in database: Stock for ${adj.brandName} ${adj.productName} corrected from ${adj.previousStock} to ${adj.newStock} ${adj.unit}.`
       );
 
       // Reset form
       setAdjustmentDiff("");
       setPhysicalCount("");
       setNotes("");
-      setState(StockStore.getState());
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Failed to record adjustment.");
     }

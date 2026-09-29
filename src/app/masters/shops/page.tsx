@@ -29,11 +29,14 @@ export default function ShopsMasterPage() {
   const [formError, setFormError] = useState("");
 
   const refreshState = () => {
-    setState(StockStore.getState());
+    setState({ ...StockStore.getState() });
   };
 
   useEffect(() => {
     setState(StockStore.getState());
+    StockStore.fetchLiveState().then((live) => setState({ ...live }));
+    const unsub = StockStore.subscribe((live) => setState({ ...live }));
+    return () => unsub();
   }, []);
 
   const openCreateModal = () => {
@@ -46,7 +49,7 @@ export default function ShopsMasterPage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
 
@@ -56,14 +59,13 @@ export default function ShopsMasterPage() {
     }
 
     try {
-      StockStore.addShop({
+      await StockStore.addShop({
         name,
         contactPerson,
         phone,
         address,
         notes,
       });
-      refreshState();
       setIsModalOpen(false);
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : "Failed to add shop.");

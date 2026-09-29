@@ -30,11 +30,14 @@ export default function MobileNativeDashboard() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const refreshState = () => {
-    setState(StockStore.getState());
+    setState({ ...StockStore.getState() });
   };
 
   useEffect(() => {
-    refreshState();
+    setState(StockStore.getState());
+    StockStore.fetchLiveState().then((live) => setState({ ...live }));
+    const unsub = StockStore.subscribe((live) => setState({ ...live }));
+    return () => unsub();
   }, []);
 
   useEffect(() => {
@@ -44,12 +47,12 @@ export default function MobileNativeDashboard() {
     }
   }, [toastMessage]);
 
-  const confirmDeleteProduct = () => {
+  const confirmDeleteProduct = async () => {
     if (!productToDelete) return;
-    StockStore.deleteProduct(productToDelete.id);
-    setToastMessage(`Product "${productToDelete.name}" deleted.`);
+    const name = productToDelete.name;
+    await StockStore.deleteProduct(productToDelete.id);
+    setToastMessage(`Product "${name}" deleted from database.`);
     setProductToDelete(null);
-    refreshState();
   };
 
   const filteredProducts = useMemo(() => {

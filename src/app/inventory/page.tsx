@@ -36,11 +36,14 @@ function InventoryContent() {
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
 
   const refreshState = () => {
-    setState(StockStore.getState());
+    setState({ ...StockStore.getState() });
   };
 
   useEffect(() => {
-    refreshState();
+    setState(StockStore.getState());
+    StockStore.fetchLiveState().then((s) => setState({ ...s }));
+    const unsub = StockStore.subscribe((s) => setState({ ...s }));
+    return () => unsub();
   }, []);
 
   useEffect(() => {
@@ -49,6 +52,25 @@ function InventoryContent() {
       return () => clearTimeout(timer);
     }
   }, [actionSuccessMsg]);
+
+  const confirmDeleteProduct = async () => {
+    if (!productToDelete) return;
+    const name = `${productToDelete.name} (${productToDelete.packageSize} ${productToDelete.packageUnit})`;
+    await StockStore.deleteProduct(productToDelete.id);
+    setActionSuccessMsg(`Product "${name}" deleted successfully.`);
+    setProductToDelete(null);
+  };
+
+  const confirmDeleteBrand = async () => {
+    if (!brandToDelete) return;
+    const name = brandToDelete.name;
+    await StockStore.deleteBrand(brandToDelete.id, true);
+    setActionSuccessMsg(`Brand "${name}" and associated SKUs deleted.`);
+    setBrandToDelete(null);
+    if (selectedBrand === brandToDelete.id) {
+      setSelectedBrand("ALL");
+    }
+  };
 
   const filteredProducts = useMemo(() => {
     if (!state) return [];
@@ -101,25 +123,6 @@ function InventoryContent() {
           : "Normal",
     }));
     exportToCSV(data, `SD_Stock_Inventory_${new Date().toISOString().slice(0, 10)}`);
-  };
-
-  const confirmDeleteProduct = () => {
-    if (!productToDelete) return;
-    StockStore.deleteProduct(productToDelete.id);
-    setActionSuccessMsg(`Product "${productToDelete.name} (${productToDelete.packageSize} ${productToDelete.packageUnit})" deleted successfully.`);
-    setProductToDelete(null);
-    refreshState();
-  };
-
-  const confirmDeleteBrand = () => {
-    if (!brandToDelete) return;
-    StockStore.deleteBrand(brandToDelete.id, true);
-    setActionSuccessMsg(`Brand "${brandToDelete.name}" and associated SKUs deleted.`);
-    setBrandToDelete(null);
-    if (selectedBrand === brandToDelete.id) {
-      setSelectedBrand("ALL");
-    }
-    refreshState();
   };
 
   if (!state) {

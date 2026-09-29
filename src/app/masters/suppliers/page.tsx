@@ -27,11 +27,14 @@ export default function SuppliersMasterPage() {
   const [formError, setFormError] = useState("");
 
   const refreshState = () => {
-    setState(StockStore.getState());
+    setState({ ...StockStore.getState() });
   };
 
   useEffect(() => {
     setState(StockStore.getState());
+    StockStore.fetchLiveState().then((live) => setState({ ...live }));
+    const unsub = StockStore.subscribe((live) => setState({ ...live }));
+    return () => unsub();
   }, []);
 
   const openCreateModal = () => {
@@ -43,7 +46,7 @@ export default function SuppliersMasterPage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
 
@@ -53,13 +56,12 @@ export default function SuppliersMasterPage() {
     }
 
     try {
-      StockStore.addSupplier({
+      await StockStore.addSupplier({
         name,
         phone,
         address,
         notes,
       });
-      refreshState();
       setIsModalOpen(false);
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : "Failed to add supplier.");

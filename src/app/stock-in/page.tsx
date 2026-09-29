@@ -50,6 +50,14 @@ export default function StockInPage() {
     if (s.suppliers.length > 0) {
       setSupplierId(s.suppliers[0].id);
     }
+    StockStore.fetchLiveState().then((live) => {
+      setState({ ...live });
+      if (live.suppliers.length > 0) {
+        setSupplierId(live.suppliers[0].id);
+      }
+    });
+    const unsub = StockStore.subscribe((live) => setState({ ...live }));
+    return () => unsub();
   }, []);
 
   const getProduct = (prodId: string): Product | undefined => {
@@ -127,7 +135,7 @@ export default function StockInPage() {
     );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
     setSuccessMsg("");
@@ -167,7 +175,7 @@ export default function StockInPage() {
     }
 
     try {
-      const newStockIn = StockStore.recordStockIn({
+      const newStockIn = await StockStore.recordStockIn({
         supplierId,
         invoiceNo,
         date: receivingDate,
@@ -176,13 +184,12 @@ export default function StockInPage() {
       });
 
       setSuccessMsg(
-        `Stock-In batch ${newStockIn.stockInCode} recorded successfully with ${validItems.length} items.`
+        `Stock-In batch ${newStockIn.stockInCode} recorded successfully in database with ${validItems.length} items.`
       );
       // Reset form
       setInvoiceNo("");
       setNotes("");
       setItems([{ id: `row_${Date.now()}`, productId: "", isBoxInput: false, boxCount: "", baseQuantity: "" }]);
-      setState(StockStore.getState());
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Failed to record stock in.");
     }

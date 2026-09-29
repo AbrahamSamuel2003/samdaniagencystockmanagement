@@ -67,6 +67,14 @@ export default function DeliveriesPage() {
     if (s.shops.length > 0) {
       setShopId(s.shops[0].id);
     }
+    StockStore.fetchLiveState().then((live) => {
+      setState({ ...live });
+      if (live.shops.length > 0) {
+        setShopId(live.shops[0].id);
+      }
+    });
+    const unsub = StockStore.subscribe((live) => setState({ ...live }));
+    return () => unsub();
   }, []);
 
   const getProduct = (prodId: string): Product | undefined => {
@@ -161,22 +169,21 @@ export default function DeliveriesPage() {
     }
   };
 
-  const executeDeliveryCommit = (payload: {
+  const executeDeliveryCommit = async (payload: {
     shopId: string;
     deliveryDate: string;
     notes?: string;
     items: Array<{ productId: string; quantity: number }>;
   }) => {
     try {
-      const newDlv = StockStore.recordDelivery(payload);
+      const newDlv = await StockStore.recordDelivery(payload);
       setSuccessMsg(
-        `Delivery ${newDlv.deliveryCode} dispatched successfully with ${payload.items.length} line items.`
+        `Delivery ${newDlv.deliveryCode} dispatched successfully to database with ${payload.items.length} line items.`
       );
       setItems([{ id: `row_${Date.now()}`, productId: "", quantity: "" }]);
       setNotes("");
       setIsWarningModalOpen(false);
       setPendingPayload(null);
-      setState(StockStore.getState());
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Failed to record delivery.");
     }

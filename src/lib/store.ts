@@ -170,101 +170,6 @@ export const DEFAULT_PRODUCTS: Product[] = [
   },
 ];
 
-export const DEFAULT_TRANSACTIONS: StockTransaction[] = [
-  {
-    id: "tx1",
-    productId: "p1",
-    productName: "Turmeric Powder",
-    brandName: "Aachi",
-    packageDisplay: "100 g",
-    type: "OPENING",
-    quantity: 25,
-    balanceAfter: 25,
-    unit: "kg",
-    partyName: "System Genesis",
-    notes: "Initial inventory setup",
-    transactionDate: "2026-09-01T09:00:00.000Z",
-    createdAt: "2026-09-01T09:00:00.000Z",
-  },
-  {
-    id: "tx2",
-    productId: "p5",
-    productName: "Sunflower Oil",
-    brandName: "Sun",
-    packageDisplay: "1 L",
-    type: "OPENING",
-    quantity: 20,
-    balanceAfter: 20,
-    unit: "box",
-    partyName: "System Genesis",
-    notes: "Initial inventory setup",
-    transactionDate: "2026-09-01T09:00:00.000Z",
-    createdAt: "2026-09-01T09:00:00.000Z",
-  },
-  {
-    id: "tx3",
-    productId: "p3",
-    productName: "Chilli Powder",
-    brandName: "Aachi",
-    packageDisplay: "500 g",
-    type: "OPENING",
-    quantity: 50,
-    balanceAfter: 50,
-    unit: "pkt",
-    partyName: "System Genesis",
-    notes: "Initial inventory setup",
-    transactionDate: "2026-09-01T09:00:00.000Z",
-    createdAt: "2026-09-01T09:00:00.000Z",
-  },
-  {
-    id: "tx4",
-    productId: "p7",
-    productName: "Ghee",
-    brandName: "Anjali",
-    packageDisplay: "1 kg",
-    type: "OPENING",
-    quantity: 15,
-    balanceAfter: 15,
-    unit: "kg",
-    partyName: "System Genesis",
-    notes: "Initial inventory setup",
-    transactionDate: "2026-09-01T09:00:00.000Z",
-    createdAt: "2026-09-01T09:00:00.000Z",
-  },
-  {
-    id: "tx5",
-    productId: "p7",
-    productName: "Ghee",
-    brandName: "Anjali",
-    packageDisplay: "1 kg",
-    type: "DELIVERY",
-    quantity: -17,
-    balanceAfter: -2,
-    unit: "kg",
-    referenceNo: "DLV-00001",
-    partyName: "Sri Lakshmi Stores",
-    notes: "Urgent dispatch ahead of stock receipt",
-    transactionDate: "2026-09-28T14:30:00.000Z",
-    createdAt: "2026-09-28T14:30:00.000Z",
-  },
-  {
-    id: "tx6",
-    productId: "p3",
-    productName: "Chilli Powder",
-    brandName: "Aachi",
-    packageDisplay: "500 g",
-    type: "DELIVERY",
-    quantity: -46,
-    balanceAfter: 4,
-    unit: "pkt",
-    referenceNo: "DLV-00002",
-    partyName: "ABC Supermarket",
-    notes: "Bulk stock order fulfilled",
-    transactionDate: "2026-09-29T10:15:00.000Z",
-    createdAt: "2026-09-29T10:15:00.000Z",
-  },
-];
-
 export interface AppState {
   brands: Brand[];
   products: Product[];
@@ -288,65 +193,38 @@ export function getInitialState(): AppState {
     suppliers: DEFAULT_SUPPLIERS,
     shops: DEFAULT_SHOPS,
     stockIns: [],
-    deliveries: [
-      {
-        id: "dlv1",
-        deliveryCode: "DLV-00001",
-        shopId: "sh1",
-        shopName: "Sri Lakshmi Stores",
-        deliveryDate: "2026-09-28T14:30:00.000Z",
-        notes: "Urgent dispatch ahead of stock receipt",
-        totalItemsCount: 1,
-        items: [
-          {
-            id: "di1",
-            productId: "p7",
-            productName: "Ghee",
-            brandName: "Anjali",
-            packageDisplay: "1 kg",
-            quantity: 17,
-            unit: "kg",
-            availableStockBefore: 15,
-            stockDeficit: 2,
-          },
-        ],
-        createdAt: "2026-09-28T14:30:00.000Z",
-      },
-      {
-        id: "dlv2",
-        deliveryCode: "DLV-00002",
-        shopId: "sh2",
-        shopName: "ABC Supermarket",
-        deliveryDate: "2026-09-29T10:15:00.000Z",
-        notes: "Bulk stock order fulfilled",
-        totalItemsCount: 1,
-        items: [
-          {
-            id: "di2",
-            productId: "p3",
-            productName: "Chilli Powder",
-            brandName: "Aachi",
-            packageDisplay: "500 g",
-            quantity: 46,
-            unit: "pkt",
-            availableStockBefore: 50,
-          },
-        ],
-        createdAt: "2026-09-29T10:15:00.000Z",
-      },
-    ],
+    deliveries: [],
     adjustments: [],
-    transactions: DEFAULT_TRANSACTIONS,
+    transactions: [],
     counters: {
       stockIn: 1,
-      delivery: 3,
+      delivery: 1,
       adjustment: 1,
     },
   };
 }
 
+type Listener = (state: AppState) => void;
+
 export class StockStore {
-  private static loadState(): AppState {
+  private static cachedState: AppState | null = null;
+  private static listeners: Set<Listener> = new Set();
+  private static isFetching = false;
+
+  private static notifyListeners() {
+    if (this.cachedState) {
+      this.listeners.forEach((listener) => listener(this.cachedState!));
+    }
+  }
+
+  static subscribe(listener: Listener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private static loadLocalState(): AppState {
     if (typeof window === "undefined") {
       return getInitialState();
     }
@@ -363,30 +241,77 @@ export class StockStore {
     }
   }
 
-  private static saveState(state: AppState) {
+  private static saveLocalState(state: AppState) {
     if (typeof window === "undefined") return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (err) {
-      console.error("Failed to persist state", err);
+      console.error("Failed to persist state locally", err);
     }
+  }
+
+  static getState(): AppState {
+    if (!this.cachedState) {
+      this.cachedState = this.loadLocalState();
+    }
+    return this.cachedState;
+  }
+
+  /**
+   * Fetches latest live data from Supabase PostgreSQL Database
+   */
+  static async fetchLiveState(): Promise<AppState> {
+    if (typeof window === "undefined") return getInitialState();
+    try {
+      this.isFetching = true;
+      const res = await fetch("/api/inventory/state", { cache: "no-store" });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          this.cachedState = json.data;
+          this.saveLocalState(json.data);
+          this.notifyListeners();
+          return json.data;
+        }
+      }
+    } catch (err) {
+      console.warn("Live DB fetch fallback to cache:", err);
+    } finally {
+      this.isFetching = false;
+    }
+    return this.getState();
   }
 
   static resetToDefault(): AppState {
     const initial = getInitialState();
+    this.cachedState = initial;
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
     }
+    this.notifyListeners();
     return initial;
   }
 
-  static getState(): AppState {
-    return this.loadState();
-  }
-
   // --- BRAND ACTIONS ---
-  static addBrand(name: string, code?: string): Brand {
-    const state = this.loadState();
+  static async addBrand(name: string, code?: string): Promise<Brand> {
+    try {
+      const res = await fetch("/api/brands", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, code }),
+      });
+      if (res.ok) {
+        await this.fetchLiveState();
+        const state = this.getState();
+        const created = state.brands.find((b) => b.name === name.trim());
+        if (created) return created;
+      }
+    } catch (e) {
+      console.error("DB addBrand error:", e);
+    }
+
+    // Fallback local update
+    const state = this.getState();
     const newBrand: Brand = {
       id: `b_${Date.now()}`,
       name: name.trim(),
@@ -396,12 +321,28 @@ export class StockStore {
       updatedAt: new Date().toISOString(),
     };
     state.brands.unshift(newBrand);
-    this.saveState(state);
+    this.cachedState = state;
+    this.saveLocalState(state);
+    this.notifyListeners();
     return newBrand;
   }
 
-  static updateBrand(id: string, name: string, code?: string, status: "ACTIVE" | "INACTIVE" = "ACTIVE"): Brand | null {
-    const state = this.loadState();
+  static async updateBrand(id: string, name: string, code?: string, status: "ACTIVE" | "INACTIVE" = "ACTIVE"): Promise<Brand | null> {
+    try {
+      const res = await fetch(`/api/brands/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, code, status }),
+      });
+      if (res.ok) {
+        await this.fetchLiveState();
+        return this.getState().brands.find((b) => b.id === id) || null;
+      }
+    } catch (e) {
+      console.error("DB updateBrand error:", e);
+    }
+
+    const state = this.getState();
     const idx = state.brands.findIndex((b) => b.id === id);
     if (idx === -1) return null;
     state.brands[idx] = {
@@ -411,24 +352,36 @@ export class StockStore {
       status,
       updatedAt: new Date().toISOString(),
     };
-    this.saveState(state);
+    this.cachedState = state;
+    this.saveLocalState(state);
+    this.notifyListeners();
     return state.brands[idx];
   }
 
-  static deleteBrand(id: string, cascadeProducts: boolean = true): boolean {
-    const state = this.loadState();
-    const initialLen = state.brands.length;
+  static async deleteBrand(id: string, cascadeProducts: boolean = true): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/brands/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        await this.fetchLiveState();
+        return true;
+      }
+    } catch (e) {
+      console.error("DB deleteBrand error:", e);
+    }
+
+    const state = this.getState();
     state.brands = state.brands.filter((b) => b.id !== id);
-    if (state.brands.length === initialLen) return false;
     if (cascadeProducts) {
       state.products = state.products.filter((p) => p.brandId !== id);
     }
-    this.saveState(state);
+    this.cachedState = state;
+    this.saveLocalState(state);
+    this.notifyListeners();
     return true;
   }
 
   // --- PRODUCT ACTIONS ---
-  static addProduct(data: {
+  static async addProduct(data: {
     brandId: string;
     name: string;
     packageSize: number;
@@ -439,8 +392,25 @@ export class StockStore {
     subUnitName?: string;
     openingStock?: number;
     lowStockLimit?: number;
-  }): Product {
-    const state = this.loadState();
+  }): Promise<Product> {
+    try {
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        await this.fetchLiveState();
+        const state = this.getState();
+        const created = state.products.find((p) => p.name === data.name.trim() && p.brandId === data.brandId);
+        if (created) return created;
+      }
+    } catch (e) {
+      console.error("DB addProduct error:", e);
+    }
+
+    // Fallback local update
+    const state = this.getState();
     const brand = state.brands.find((b) => b.id === data.brandId);
     const brandName = brand ? brand.name : "General";
     const opening = data.openingStock || 0;
@@ -458,38 +428,19 @@ export class StockStore {
       subUnitName: data.hasBoxConversion && data.subUnitName ? data.subUnitName.trim() : undefined,
       openingStock: opening,
       currentStock: opening,
-      lowStockLimit: data.lowStockLimit !== undefined && data.lowStockLimit !== null && data.lowStockLimit > 0 ? Number(data.lowStockLimit) : undefined,
+      lowStockLimit: data.lowStockLimit !== undefined && data.lowStockLimit !== null ? Number(data.lowStockLimit) : undefined,
       status: "ACTIVE",
       createdAt: now,
       updatedAt: now,
     };
-
     state.products.unshift(newProduct);
-
-    if (opening > 0) {
-      const tx: StockTransaction = {
-        id: `tx_${Date.now()}`,
-        productId: newProduct.id,
-        productName: newProduct.name,
-        brandName: newProduct.brandName,
-        packageDisplay: `${newProduct.packageSize} ${newProduct.packageUnit}`,
-        type: "OPENING",
-        quantity: opening,
-        balanceAfter: opening,
-        unit: newProduct.stockUnit,
-        partyName: "System Genesis",
-        notes: "Product creation opening balance",
-        transactionDate: now,
-        createdAt: now,
-      };
-      state.transactions.unshift(tx);
-    }
-
-    this.saveState(state);
+    this.cachedState = state;
+    this.saveLocalState(state);
+    this.notifyListeners();
     return newProduct;
   }
 
-  static updateProduct(
+  static async updateProduct(
     id: string,
     data: {
       brandId: string;
@@ -503,8 +454,22 @@ export class StockStore {
       lowStockLimit?: number;
       status?: "ACTIVE" | "INACTIVE";
     }
-  ): Product | null {
-    const state = this.loadState();
+  ): Promise<Product | null> {
+    try {
+      const res = await fetch(`/api/products/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        await this.fetchLiveState();
+        return this.getState().products.find((p) => p.id === id) || null;
+      }
+    } catch (e) {
+      console.error("DB updateProduct error:", e);
+    }
+
+    const state = this.getState();
     const idx = state.products.findIndex((p) => p.id === id);
     if (idx === -1) return null;
     const brand = state.brands.find((b) => b.id === data.brandId);
@@ -523,22 +488,50 @@ export class StockStore {
       status: data.status || state.products[idx].status,
       updatedAt: new Date().toISOString(),
     };
-    this.saveState(state);
+    this.cachedState = state;
+    this.saveLocalState(state);
+    this.notifyListeners();
     return state.products[idx];
   }
 
-  static deleteProduct(id: string): boolean {
-    const state = this.loadState();
-    const initialLen = state.products.length;
+  static async deleteProduct(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        await this.fetchLiveState();
+        return true;
+      }
+    } catch (e) {
+      console.error("DB deleteProduct error:", e);
+    }
+
+    const state = this.getState();
     state.products = state.products.filter((p) => p.id !== id);
-    if (state.products.length === initialLen) return false;
-    this.saveState(state);
+    this.cachedState = state;
+    this.saveLocalState(state);
+    this.notifyListeners();
     return true;
   }
 
   // --- SUPPLIER ACTIONS ---
-  static addSupplier(data: { name: string; phone?: string; address?: string; notes?: string }): Supplier {
-    const state = this.loadState();
+  static async addSupplier(data: { name: string; phone?: string; address?: string; notes?: string }): Promise<Supplier> {
+    try {
+      const res = await fetch("/api/masters/suppliers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        await this.fetchLiveState();
+        const state = this.getState();
+        const created = state.suppliers.find((s) => s.name === data.name.trim());
+        if (created) return created;
+      }
+    } catch (e) {
+      console.error("DB addSupplier error:", e);
+    }
+
+    const state = this.getState();
     const newSupplier: Supplier = {
       id: `s_${Date.now()}`,
       name: data.name.trim(),
@@ -550,13 +543,31 @@ export class StockStore {
       updatedAt: new Date().toISOString(),
     };
     state.suppliers.unshift(newSupplier);
-    this.saveState(state);
+    this.cachedState = state;
+    this.saveLocalState(state);
+    this.notifyListeners();
     return newSupplier;
   }
 
   // --- SHOP ACTIONS ---
-  static addShop(data: { name: string; contactPerson?: string; phone?: string; address?: string; notes?: string }): Shop {
-    const state = this.loadState();
+  static async addShop(data: { name: string; contactPerson?: string; phone?: string; address?: string; notes?: string }): Promise<Shop> {
+    try {
+      const res = await fetch("/api/masters/shops", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        await this.fetchLiveState();
+        const state = this.getState();
+        const created = state.shops.find((sh) => sh.name === data.name.trim());
+        if (created) return created;
+      }
+    } catch (e) {
+      console.error("DB addShop error:", e);
+    }
+
+    const state = this.getState();
     const newShop: Shop = {
       id: `sh_${Date.now()}`,
       name: data.name.trim(),
@@ -569,94 +580,86 @@ export class StockStore {
       updatedAt: new Date().toISOString(),
     };
     state.shops.unshift(newShop);
-    this.saveState(state);
+    this.cachedState = state;
+    this.saveLocalState(state);
+    this.notifyListeners();
     return newShop;
   }
 
   // --- STOCK-IN ATOMIC ACTION ---
-  static recordStockIn(data: {
+  static async recordStockIn(data: {
     supplierId: string;
     invoiceNo?: string;
     date: string;
     notes?: string;
     items: Array<{
       productId: string;
-      quantity: number; // Base quantity
+      quantity: number;
       inputBoxes?: number;
-      unit: string;
     }>;
-  }): StockIn {
-    const state = this.loadState();
-    const supplier = state.suppliers.find((s) => s.id === data.supplierId);
-    const supplierName = supplier ? supplier.name : "Unknown Supplier";
-    const stockInCode = generateCode("STK", state.counters.stockIn);
-    state.counters.stockIn += 1;
-
-    const now = new Date().toISOString();
-    let totalQty = 0;
-
-    const processedItems = data.items.map((item, index) => {
-      const prodIndex = state.products.findIndex((p) => p.id === item.productId);
-      if (prodIndex === -1) {
-        throw new Error(`Product not found: ${item.productId}`);
+  }): Promise<StockIn> {
+    try {
+      const res = await fetch("/api/stock-in", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        await this.fetchLiveState();
+        const state = this.getState();
+        if (state.stockIns.length > 0) return state.stockIns[0];
       }
-      const prod = state.products[prodIndex];
-      const newStock = Number((prod.currentStock + Number(item.quantity)).toFixed(2));
-      prod.currentStock = newStock;
-      prod.updatedAt = now;
-      totalQty += Number(item.quantity);
+    } catch (e) {
+      console.error("DB recordStockIn error:", e);
+    }
 
-      // Create Ledger Transaction
-      const tx: StockTransaction = {
-        id: `tx_${Date.now()}_${index}`,
-        productId: prod.id,
-        productName: prod.name,
-        brandName: prod.brandName,
-        packageDisplay: `${prod.packageSize} ${prod.packageUnit}`,
-        type: "STOCK_IN",
-        quantity: Number(item.quantity),
-        balanceAfter: newStock,
-        unit: prod.stockUnit,
-        referenceNo: stockInCode,
-        partyName: supplierName,
-        notes: data.notes || (data.invoiceNo ? `Inv: ${data.invoiceNo}` : undefined),
-        transactionDate: data.date ? new Date(data.date).toISOString() : now,
-        createdAt: now,
-      };
-      state.transactions.unshift(tx);
+    const state = this.getState();
+    const code = generateCode("STK", state.counters.stockIn);
+    state.counters.stockIn += 1;
+    const now = new Date().toISOString();
+    const supplier = state.suppliers.find((s) => s.id === data.supplierId);
 
+    const stockInItems = data.items.map((item, idx) => {
+      const product = state.products.find((p) => p.id === item.productId);
+      const pkg = product ? `${product.packageSize} ${product.packageUnit}` : "Standard";
+      const unit = product ? product.stockUnit : "kg";
+      if (product) {
+        product.currentStock = Number((product.currentStock + item.quantity).toFixed(2));
+      }
       return {
-        id: `si_${Date.now()}_${index}`,
-        productId: prod.id,
-        productName: prod.name,
-        brandName: prod.brandName,
-        packageDisplay: `${prod.packageSize} ${prod.packageUnit}`,
-        quantity: Number(item.quantity),
-        inputBoxes: item.inputBoxes ? Number(item.inputBoxes) : undefined,
-        unit: prod.stockUnit,
+        id: `si_${Date.now()}_${idx}`,
+        productId: item.productId,
+        productName: product?.name || "Product",
+        brandName: product?.brandName || "Brand",
+        packageDisplay: pkg,
+        quantity: item.quantity,
+        unit,
+        inputBoxes: item.inputBoxes,
       };
     });
 
     const newStockIn: StockIn = {
-      id: `stkin_${Date.now()}`,
-      stockInCode,
-      invoiceNo: data.invoiceNo?.trim(),
+      id: `stk_${Date.now()}`,
+      stockInCode: code,
       supplierId: data.supplierId,
-      supplierName,
-      date: data.date ? new Date(data.date).toISOString() : now,
+      supplierName: supplier?.name || "Supplier",
+      invoiceNo: data.invoiceNo?.trim(),
+      date: data.date,
       notes: data.notes?.trim(),
-      items: processedItems,
-      totalQuantity: totalQty,
+      totalQuantity: stockInItems.reduce((acc, item) => acc + item.quantity, 0),
+      items: stockInItems,
       createdAt: now,
     };
 
     state.stockIns.unshift(newStockIn);
-    this.saveState(state);
+    this.cachedState = state;
+    this.saveLocalState(state);
+    this.notifyListeners();
     return newStockIn;
   }
 
   // --- DELIVERY ATOMIC ACTION ---
-  static recordDelivery(data: {
+  static async recordDelivery(data: {
     shopId: string;
     deliveryDate: string;
     notes?: string;
@@ -664,138 +667,123 @@ export class StockStore {
       productId: string;
       quantity: number;
     }>;
-  }): Delivery {
-    const state = this.loadState();
-    const shop = state.shops.find((s) => s.id === data.shopId);
-    const shopName = shop ? shop.name : "Unknown Shop";
-    const deliveryCode = generateCode("DLV", state.counters.delivery);
-    state.counters.delivery += 1;
-
-    const now = new Date().toISOString();
-
-    const processedItems = data.items.map((item, index) => {
-      const prodIndex = state.products.findIndex((p) => p.id === item.productId);
-      if (prodIndex === -1) {
-        throw new Error(`Product not found: ${item.productId}`);
+  }): Promise<Delivery> {
+    try {
+      const res = await fetch("/api/deliveries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        await this.fetchLiveState();
+        const state = this.getState();
+        if (state.deliveries.length > 0) return state.deliveries[0];
       }
-      const prod = state.products[prodIndex];
-      const prevStock = prod.currentStock;
-      const reqQty = Number(item.quantity);
-      const newStock = Number((prevStock - reqQty).toFixed(2));
-      const deficit = reqQty > prevStock ? Number((reqQty - prevStock).toFixed(2)) : 0;
+    } catch (e) {
+      console.error("DB recordDelivery error:", e);
+    }
 
-      prod.currentStock = newStock;
-      prod.updatedAt = now;
+    const state = this.getState();
+    const code = generateCode("DLV", state.counters.delivery);
+    state.counters.delivery += 1;
+    const now = new Date().toISOString();
+    const shop = state.shops.find((s) => s.id === data.shopId);
 
-      // Create Ledger Transaction
-      const tx: StockTransaction = {
-        id: `tx_${Date.now()}_${index}`,
-        productId: prod.id,
-        productName: prod.name,
-        brandName: prod.brandName,
-        packageDisplay: `${prod.packageSize} ${prod.packageUnit}`,
-        type: "DELIVERY",
-        quantity: -reqQty,
-        balanceAfter: newStock,
-        unit: prod.stockUnit,
-        referenceNo: deliveryCode,
-        partyName: shopName,
-        notes: data.notes,
-        transactionDate: data.deliveryDate ? new Date(data.deliveryDate).toISOString() : now,
-        createdAt: now,
-      };
-      state.transactions.unshift(tx);
-
+    const deliveryItems = data.items.map((item, idx) => {
+      const product = state.products.find((p) => p.id === item.productId);
+      const prevStock = product ? product.currentStock : 0;
+      const deficit = item.quantity > prevStock ? Number((item.quantity - prevStock).toFixed(2)) : undefined;
+      const pkg = product ? `${product.packageSize} ${product.packageUnit}` : "Standard";
+      const unit = product ? product.stockUnit : "kg";
+      if (product) {
+        product.currentStock = Number((product.currentStock - item.quantity).toFixed(2));
+      }
       return {
-        id: `di_${Date.now()}_${index}`,
-        productId: prod.id,
-        productName: prod.name,
-        brandName: prod.brandName,
-        packageDisplay: `${prod.packageSize} ${prod.packageUnit}`,
-        quantity: reqQty,
-        unit: prod.stockUnit,
+        id: `di_${Date.now()}_${idx}`,
+        productId: item.productId,
+        productName: product?.name || "Product",
+        brandName: product?.brandName || "Brand",
+        packageDisplay: pkg,
+        quantity: item.quantity,
+        unit,
         availableStockBefore: prevStock,
-        stockDeficit: deficit > 0 ? deficit : undefined,
+        stockDeficit: deficit,
       };
     });
 
     const newDelivery: Delivery = {
       id: `dlv_${Date.now()}`,
-      deliveryCode,
+      deliveryCode: code,
       shopId: data.shopId,
-      shopName,
-      deliveryDate: data.deliveryDate ? new Date(data.deliveryDate).toISOString() : now,
+      shopName: shop?.name || "Shop",
+      deliveryDate: data.deliveryDate,
       notes: data.notes?.trim(),
-      items: processedItems,
-      totalItemsCount: processedItems.length,
+      totalItemsCount: deliveryItems.length,
+      items: deliveryItems,
       createdAt: now,
     };
 
     state.deliveries.unshift(newDelivery);
-    this.saveState(state);
+    this.cachedState = state;
+    this.saveLocalState(state);
+    this.notifyListeners();
     return newDelivery;
   }
 
-  // --- STOCK ADJUSTMENT ATOMIC ACTION ---
-  static recordAdjustment(data: {
+  // --- ADJUSTMENT ATOMIC ACTION ---
+  static async recordAdjustment(data: {
     productId: string;
-    adjustmentQty: number; // Signed: -3 or +2
+    adjustmentQty: number;
     reason: AdjustmentReason;
     notes?: string;
-  }): StockAdjustment {
-    const state = this.loadState();
-    const prodIndex = state.products.findIndex((p) => p.id === data.productId);
-    if (prodIndex === -1) {
-      throw new Error(`Product not found: ${data.productId}`);
+  }): Promise<StockAdjustment> {
+    try {
+      const res = await fetch("/api/adjustments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        await this.fetchLiveState();
+        const state = this.getState();
+        if (state.adjustments.length > 0) return state.adjustments[0];
+      }
+    } catch (e) {
+      console.error("DB recordAdjustment error:", e);
     }
-    const prod = state.products[prodIndex];
-    const prevStock = prod.currentStock;
-    const adjQty = Number(data.adjustmentQty);
-    const newStock = Number((prevStock + adjQty).toFixed(2));
-    const now = new Date().toISOString();
-    const adjCode = generateCode("ADJ", state.counters.adjustment);
+
+    const state = this.getState();
+    const product = state.products.find((p) => p.id === data.productId);
+    const prevStock = product ? product.currentStock : 0;
+    const newStock = Number((prevStock + data.adjustmentQty).toFixed(2));
+    if (product) {
+      product.currentStock = newStock;
+    }
+
+    const code = generateCode("ADJ", state.counters.adjustment);
     state.counters.adjustment += 1;
+    const now = new Date().toISOString();
 
-    prod.currentStock = newStock;
-    prod.updatedAt = now;
-
-    // Create Ledger Transaction
-    const tx: StockTransaction = {
-      id: `tx_${Date.now()}`,
-      productId: prod.id,
-      productName: prod.name,
-      brandName: prod.brandName,
-      packageDisplay: `${prod.packageSize} ${prod.packageUnit}`,
-      type: "ADJUSTMENT",
-      quantity: adjQty,
-      balanceAfter: newStock,
-      unit: prod.stockUnit,
-      referenceNo: adjCode,
-      partyName: data.reason.replace(/_/g, " "),
-      notes: data.notes,
-      transactionDate: now,
-      createdAt: now,
-    };
-    state.transactions.unshift(tx);
-
-    const adjustmentRecord: StockAdjustment = {
+    const newAdj: StockAdjustment = {
       id: `adj_${Date.now()}`,
-      adjustmentCode: adjCode,
-      productId: prod.id,
-      productName: prod.name,
-      brandName: prod.brandName,
-      packageDisplay: `${prod.packageSize} ${prod.packageUnit}`,
-      unit: prod.stockUnit,
-      adjustmentQty: adjQty,
+      adjustmentCode: code,
+      productId: data.productId,
+      productName: product?.name || "Product",
+      brandName: product?.brandName || "Brand",
+      packageDisplay: product ? `${product.packageSize} ${product.packageUnit}` : "Standard",
+      adjustmentQty: data.adjustmentQty,
       previousStock: prevStock,
       newStock,
+      unit: product?.stockUnit || "kg",
       reason: data.reason,
       notes: data.notes?.trim(),
       createdAt: now,
     };
 
-    state.adjustments.unshift(adjustmentRecord);
-    this.saveState(state);
-    return adjustmentRecord;
+    state.adjustments.unshift(newAdj);
+    this.cachedState = state;
+    this.saveLocalState(state);
+    this.notifyListeners();
+    return newAdj;
   }
 }

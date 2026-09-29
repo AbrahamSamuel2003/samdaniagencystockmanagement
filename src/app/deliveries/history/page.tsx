@@ -25,6 +25,9 @@ export default function DeliveryHistoryPage() {
 
   useEffect(() => {
     setState(StockStore.getState());
+    StockStore.fetchLiveState().then((live) => setState({ ...live }));
+    const unsub = StockStore.subscribe((live) => setState({ ...live }));
+    return () => unsub();
   }, []);
 
   if (!state) return null;
