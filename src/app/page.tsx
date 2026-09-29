@@ -8,25 +8,49 @@ import {
   ArrowDownToLine,
   Search,
   AlertTriangle,
-  TrendingDown,
   History,
   PlusCircle,
   ArrowUpRight,
   ArrowDownRight,
   SlidersHorizontal,
+  Trash2,
+  CheckCircle2,
 } from "lucide-react";
 import { StockStore, AppState } from "@/lib/store";
+import { Product } from "@/lib/types";
 import { formatQuantity, formatDate } from "@/lib/utils";
+import { DeleteConfirmModal } from "@/components/ui/DeleteConfirmModal";
 
 export default function MobileNativeDashboard() {
   const [state, setState] = useState<AppState | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBrand, setSelectedBrand] = useState<string>("ALL");
   const [filterMode, setFilterMode] = useState<"ALL" | "LOW" | "NEGATIVE">("ALL");
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const refreshState = () => {
+    setState(StockStore.getState());
+  };
 
   useEffect(() => {
-    setState(StockStore.getState());
+    refreshState();
   }, []);
+
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
+
+  const confirmDeleteProduct = () => {
+    if (!productToDelete) return;
+    StockStore.deleteProduct(productToDelete.id);
+    setToastMessage(`Product "${productToDelete.name}" deleted.`);
+    setProductToDelete(null);
+    refreshState();
+  };
 
   const filteredProducts = useMemo(() => {
     if (!state) return [];
@@ -86,7 +110,24 @@ export default function MobileNativeDashboard() {
   const recentTransactions = transactions.slice(0, 5);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-7xl mx-auto pb-12">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs font-semibold text-emerald-800 animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="flex items-center space-x-2 truncate">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="truncate">{toastMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="text-emerald-700 hover:text-emerald-900 font-bold ml-2 text-sm"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* 2 Primary Core Native Action Cards */}
       <div className="grid grid-cols-2 gap-2.5">
         <Link
@@ -150,33 +191,59 @@ export default function MobileNativeDashboard() {
               }`}
             >
               <AlertTriangle className="w-3.5 h-3.5" />
-              <span>{negativeStockItems.length} Negative Stock Alert</span>
+              <span>{negativeStockItems.length} Deficit (Negative)</span>
             </button>
           )}
 
           {lowStockItems.length > 0 && (
             <button
               type="button"
-              onClick={() =>
-                setFilterMode(filterMode === "LOW" ? "ALL" : "LOW")
-              }
+              onClick={() => setFilterMode(filterMode === "LOW" ? "ALL" : "LOW")}
               className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors flex items-center space-x-1.5 ${
                 filterMode === "LOW"
                   ? "bg-amber-500 text-white border-amber-500"
-                  : "bg-amber-50 text-amber-900 border-amber-200"
+                  : "bg-amber-50 text-amber-800 border-amber-200"
               }`}
             >
-              <TrendingDown className="w-3.5 h-3.5" />
-              <span>{lowStockItems.length} Low Stock Alert</span>
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>{lowStockItems.length} Low Limit SKUs</span>
+            </button>
+          )}
+
+          {filterMode !== "ALL" && (
+            <button
+              type="button"
+              onClick={() => setFilterMode("ALL")}
+              className="flex-shrink-0 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200"
+            >
+              Clear Filter
             </button>
           )}
         </div>
       )}
 
-      {/* Live Godown Inventory List Section */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-4 shadow-xs space-y-3">
-        {/* Search & Brand Filter */}
-        <div className="space-y-2">
+      {/* Live Godown Inventory Grid */}
+      <div className="space-y-3">
+        {/* Section Header */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                <Boxes className="w-4 h-4" />
+              </div>
+              <h2 className="text-sm font-bold text-slate-900 leading-tight">
+                Live Inventory ({filteredProducts.length})
+              </h2>
+            </div>
+            <Link
+              href="/inventory"
+              className="text-xs font-bold text-blue-600 hover:underline"
+            >
+              Full Godown
+            </Link>
+          </div>
+
+          {/* Quick Search */}
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -188,27 +255,27 @@ export default function MobileNativeDashboard() {
             />
           </div>
 
-          {/* Brand Scrollable Filter Chips */}
+          {/* Brand Filter Chips */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
             <button
               type="button"
               onClick={() => setSelectedBrand("ALL")}
-              className={`px-3 py-1 rounded-lg font-semibold whitespace-nowrap transition-colors ${
+              className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition-colors ${
                 selectedBrand === "ALL"
-                  ? "bg-slate-900 text-white"
+                  ? "bg-slate-900 text-white shadow-xs"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >
-              All Brands ({products.length})
+              All ({products.length})
             </button>
             {brands.map((b) => (
               <button
                 key={b.id}
                 type="button"
                 onClick={() => setSelectedBrand(b.id)}
-                className={`px-3 py-1 rounded-lg font-semibold whitespace-nowrap transition-colors ${
+                className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition-colors ${
                   selectedBrand === b.id
-                    ? "bg-blue-600 text-white"
+                    ? "bg-blue-600 text-white shadow-xs"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
@@ -218,10 +285,10 @@ export default function MobileNativeDashboard() {
           </div>
         </div>
 
-        {/* Product Cards List */}
-        <div className="divide-y divide-slate-100">
+        {/* 2-Cards-Per-Row Responsive Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
           {filteredProducts.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-400">
+            <div className="col-span-full py-12 text-center text-xs text-slate-400 bg-white rounded-2xl border border-slate-200">
               No products found matching filters.
             </div>
           ) : (
@@ -233,63 +300,108 @@ export default function MobileNativeDashboard() {
                 p.currentStock <= p.lowStockLimit &&
                 !isNeg;
 
+              const brandInitial = (p.brandName || "SD").slice(0, 3).toUpperCase();
+
               return (
                 <div
                   key={p.id}
-                  className="py-3 first:pt-1 last:pb-1 flex items-center justify-between gap-3"
+                  className="bg-white rounded-2xl border border-slate-200 p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:border-blue-300 hover:shadow-sm transition-all overflow-hidden w-full min-w-0"
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded border border-slate-200">
-                        {p.brandName}
-                      </span>
-                      <span className="text-xs font-bold text-slate-900 truncate">
-                        {p.name}
-                      </span>
+                  <div className="w-full min-w-0">
+                    {/* Top Preview / Media Box */}
+                    <div className="w-full h-20 sm:h-24 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center p-2 mb-2.5 relative overflow-hidden group">
+                      <div className="flex flex-col items-center justify-center text-center">
+                        <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white border border-slate-200 shadow-xs flex items-center justify-center text-blue-700 font-black text-xs sm:text-sm tracking-wider">
+                          {brandInitial}
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight mt-1 truncate max-w-[120px]">
+                          {p.brandName}
+                        </span>
+                      </div>
+
+                      {/* Status Badge */}
+                      <div className="absolute top-1.5 right-1.5">
+                        {isNeg ? (
+                          <span className="px-1.5 py-0.5 bg-red-100 text-red-800 text-[9px] font-bold rounded-md shadow-2xs border border-red-200">
+                            Deficit
+                          </span>
+                        ) : isLow ? (
+                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[9px] font-bold rounded-md shadow-2xs border border-amber-200">
+                            Low
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-bold rounded-md shadow-2xs border border-emerald-200">
+                            Active
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="text-[11px] text-slate-500 mt-0.5 flex items-center space-x-2">
-                      <span>{p.packageSize} {p.packageUnit}</span>
+                    {/* Product Name & Details */}
+                    <div className="w-full min-w-0">
+                      <h3
+                        className="text-xs sm:text-sm font-bold text-slate-900 leading-tight truncate"
+                        title={p.name}
+                      >
+                        {p.name}
+                      </h3>
+                      <div className="text-[11px] text-slate-500 font-medium mt-0.5 truncate">
+                        Size: <span className="font-semibold text-slate-700">{p.packageSize} {p.packageUnit}</span>
+                      </div>
+
                       {p.hasBoxConversion && (
-                        <span className="text-[10px] text-blue-600 font-medium">
-                          (1 Box = {p.unitsPerBox} {p.subUnitName || "Units"})
+                        <div className="mt-1 text-[10px] text-blue-700 bg-blue-50/80 px-1.5 py-0.5 rounded-md border border-blue-100 truncate">
+                          1 Box = {p.unitsPerBox} {p.subUnitName || "Pkt"}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Stock Display */}
+                    <div className="mt-2 pt-2 border-t border-slate-100 flex items-baseline justify-between min-w-0">
+                      <div className="min-w-0 truncate">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block leading-none">
+                          Current Stock
+                        </span>
+                        <span
+                          className={`text-xs sm:text-sm font-black truncate block leading-tight mt-0.5 ${
+                            isNeg
+                              ? "text-red-600"
+                              : isLow
+                              ? "text-amber-600"
+                              : "text-slate-900"
+                          }`}
+                        >
+                          {formatQuantity(p.currentStock, p.stockUnit)}
+                        </span>
+                      </div>
+                      {p.lowStockLimit !== undefined && p.lowStockLimit !== null && (
+                        <span className="text-[9px] text-slate-400 shrink-0">
+                          Min: {p.lowStockLimit}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Stock Counter & Quick Adjust Button */}
-                  <div className="text-right flex items-center space-x-2.5 flex-shrink-0">
-                    <div>
-                      <div
-                        className={`text-sm font-black ${
-                          isNeg
-                            ? "text-red-600"
-                            : isLow
-                            ? "text-amber-600"
-                            : "text-slate-900"
-                        }`}
-                      >
-                        {formatQuantity(p.currentStock, p.stockUnit)}
-                      </div>
-                      <div className="text-[10px] font-medium">
-                        {isNeg ? (
-                          <span className="text-red-600 font-bold">Deficit</span>
-                        ) : isLow ? (
-                          <span className="text-amber-700 font-bold">Low Stock</span>
-                        ) : (
-                          <span className="text-emerald-700 font-semibold">In Stock</span>
-                        )}
-                      </div>
-                    </div>
-
+                  {/* Dual Action Buttons (Adjust & Delete) */}
+                  <div className="grid grid-cols-2 gap-1.5 sm:gap-2 mt-3 pt-2.5 border-t border-slate-100 w-full min-w-0">
                     <Link
                       href={`/adjustments?productId=${p.id}`}
-                      className="p-1.5 text-slate-400 hover:text-blue-600 bg-slate-50 border border-slate-200 rounded-lg"
+                      className="flex-1 py-1.5 px-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded-xl text-[11px] font-bold flex items-center justify-center space-x-1 transition-colors truncate"
                       title="Adjust Stock"
                     >
-                      <SlidersHorizontal className="w-3.5 h-3.5" />
+                      <SlidersHorizontal className="w-3.5 h-3.5 shrink-0 text-blue-600" />
+                      <span className="truncate">Adjust</span>
                     </Link>
+
+                    <button
+                      type="button"
+                      onClick={() => setProductToDelete(p)}
+                      className="flex-1 py-1.5 px-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 rounded-xl text-[11px] font-bold flex items-center justify-center space-x-1 transition-colors truncate"
+                      title="Delete Product"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                      <span className="truncate">Delete</span>
+                    </button>
                   </div>
                 </div>
               );
@@ -319,11 +431,11 @@ export default function MobileNativeDashboard() {
             return (
               <div
                 key={tx.id}
-                className="flex items-center justify-between text-xs p-2 bg-slate-50 rounded-xl border border-slate-100"
+                className="flex items-center justify-between text-xs p-2.5 bg-slate-50 rounded-xl border border-slate-100"
               >
                 <div className="flex items-center space-x-2 min-w-0">
                   <div
-                    className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
                       tx.type === "STOCK_IN" || tx.type === "OPENING"
                         ? "bg-blue-100 text-blue-700"
                         : tx.type === "DELIVERY"
@@ -332,9 +444,9 @@ export default function MobileNativeDashboard() {
                     }`}
                   >
                     {isPositive ? (
-                      <ArrowDownRight className="w-3.5 h-3.5" />
+                      <ArrowDownRight className="w-4 h-4" />
                     ) : (
-                      <ArrowUpRight className="w-3.5 h-3.5" />
+                      <ArrowUpRight className="w-4 h-4" />
                     )}
                   </div>
 
@@ -348,7 +460,7 @@ export default function MobileNativeDashboard() {
                   </div>
                 </div>
 
-                <div className="text-right flex-shrink-0 ml-2">
+                <div className="text-right shrink-0 ml-2">
                   <div
                     className={`font-bold ${
                       isPositive ? "text-blue-700" : "text-slate-800"
@@ -366,6 +478,18 @@ export default function MobileNativeDashboard() {
           })}
         </div>
       </div>
+
+      {/* Delete Product Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!productToDelete}
+        onClose={() => setProductToDelete(null)}
+        onConfirm={confirmDeleteProduct}
+        title="Delete Product SKU"
+        itemName={productToDelete ? `${productToDelete.brandName} - ${productToDelete.name} (${productToDelete.packageSize} ${productToDelete.packageUnit})` : ""}
+        itemType="Product"
+        warningNote="Removing this product will exclude it from future stock transactions."
+        confirmButtonText="Yes, Delete Product"
+      />
     </div>
   );
 }

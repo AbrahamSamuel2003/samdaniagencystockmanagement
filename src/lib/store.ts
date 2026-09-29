@@ -415,6 +415,18 @@ export class StockStore {
     return state.brands[idx];
   }
 
+  static deleteBrand(id: string, cascadeProducts: boolean = true): boolean {
+    const state = this.loadState();
+    const initialLen = state.brands.length;
+    state.brands = state.brands.filter((b) => b.id !== id);
+    if (state.brands.length === initialLen) return false;
+    if (cascadeProducts) {
+      state.products = state.products.filter((p) => p.brandId !== id);
+    }
+    this.saveState(state);
+    return true;
+  }
+
   // --- PRODUCT ACTIONS ---
   static addProduct(data: {
     brandId: string;
@@ -513,6 +525,15 @@ export class StockStore {
     };
     this.saveState(state);
     return state.products[idx];
+  }
+
+  static deleteProduct(id: string): boolean {
+    const state = this.loadState();
+    const initialLen = state.products.length;
+    state.products = state.products.filter((p) => p.id !== id);
+    if (state.products.length === initialLen) return false;
+    this.saveState(state);
+    return true;
   }
 
   // --- SUPPLIER ACTIONS ---
